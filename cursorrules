@@ -1,0 +1,96 @@
+# TLDRpal Project Rules
+
+## Project Overview
+TLDRpal is an intelligent family communication assistant that:
+1. Aggregates information from multiple sources (schools, extracurriculars, childcare)
+2. Organizes into calendar events, tasks, and summaries
+3. Identifies scheduling conflicts
+4. Suggests resolutions
+5. Acts on behalf of parents (sends RSVPs, coordinates with others)
+
+Email is the starting input source; planned sources include school portals, activity platforms, messaging, and documents.
+
+## Tech Stack
+- **Workflow automation**: n8n (cloud instance)
+- **Database**: Supabase (PostgreSQL)
+- **Auth/OAuth**: Nango (multi-tenant OAuth management)
+- **AI**: Claude API for parsing and extraction
+- **Target architecture**: Multi-tenant SaaS
+
+## Architecture Principles
+- All input sources normalize to `unified_events` table before processing
+- Don't build email-specific logic where source-agnostic logic would work
+- Database as queue — workflows poll database, not each other
+- Idempotent operations — same input produces same output
+- Stateless workflows — all state lives in database
+
+## Code Conventions
+- Use TypeScript for any Node.js code
+- Use async/await, never raw promises
+- Always include error handling with meaningful error messages
+- Keep functions small and single-purpose
+- Log important operations for debugging
+
+## n8n Workflow Conventions
+- Workflow JSON files live in `/workflows`
+- Name workflows descriptively: `email-to-calendar-event.json`
+- Use sticky notes in n8n to document complex logic
+- Always include error handling nodes
+- Credentials fetched via Nango, never stored in n8n
+- Subworkflows for reusable logic (task CRUD, calendar CRUD)
+
+## Database Schema Context
+- `unified_events`: All incoming communications (single source of truth)
+- `calendar_events`: Parsed events with title, start_time, end_time, source_item_id
+- `tasks`: Extracted action items (domino model — first task only, following task holds rest)
+- `family_facts`: Context about each family (kids, schools, activities)
+- `family_keywords`: Keywords for email search filtering
+- Deduplication uses composite key of (event_title, start_time, source)
+
+## Task Model
+- **Domino task**: Current actionable item (one decision, not a checklist)
+- **Following task**: Holds remaining steps until domino is complete
+- Cron creates next domino when user completes current one
+- Principle: "First domino only" — each task is a decision point
+
+## AI Processing Guidelines
+- Minimize token usage — extract only necessary fields
+- Use structured output (JSON) for all extractions
+- Source-type-specific prompts where needed, but prefer generic extraction
+- Include confidence scores for parsed data when possible
+- **Err on more**: When uncertain, extract/create the item
+
+## Trust & Autonomy Model
+- **Auto-approve**: Low-risk (add calendar event, create task)
+- **Confirm first**: Medium-risk (send RSVP, decline invitation)
+- **Always ask**: High-risk (cancel commitments, message other parents)
+
+## Default Debugging Behavior
+
+When I ask you to debug, run, or test an n8n workflow:
+1. Use the n8n MCP tools to fetch the current workflow from my n8n cloud instance
+2. Analyze the workflow JSON and recent execution logs
+3. Suggest fixes inline
+4. If I approve, push the updated workflow back via MCP
+
+Do NOT just edit local JSON files unless I specifically ask for offline work.
+
+## Common Tasks
+When I ask you to:
+- "Debug a workflow" → Use MCP to fetch live workflow, check null handling, API errors, data type mismatches, Nango token fetching
+- "Add a new source" → Design ingestion flow, normalization to unified_events, source-specific parsing
+- "Optimize tokens" → Look for redundant context, suggest field extraction over full-text
+- "Add a feature" → Consider multi-tenant implications, idempotency, audit trail
+
+## Files to Reference
+- @CONTEXT.md for full project context and roadmap
+
+## Test Configuration
+- Test account: chungfamilyparents@gmail.com
+- Test calendar: MT-Calendar
+- Test task list: MT-List
+- TEST workflows use hardcoded values until multi-tenant is stable
+
+## Known Limitations
+- Gmail API treats multi-word phrases as OR'd single words — need client-side filtering
+- Google Tasks API has no native search — implemented workaround in Smart_Tasks_Search workflow
