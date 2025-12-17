@@ -25,8 +25,7 @@ export async function POST(request: NextRequest) {
         end_user: {
           id: userId || 'user-' + Date.now()
         },
-        allowed_integrations: ['google'],
-        redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/nango-callback`
+        allowed_integrations: ['google']
       })
     })
 
