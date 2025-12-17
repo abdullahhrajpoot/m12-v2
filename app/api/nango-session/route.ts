@@ -33,8 +33,16 @@ export async function POST(request: NextRequest) {
     const data = await response.json()
 
     if (!response.ok) {
+      console.error('Nango API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: data
+      })
+      const errorMsg = typeof data.error === 'string' 
+        ? data.error 
+        : data.message || JSON.stringify(data)
       return NextResponse.json(
-        { error: data.error || 'Failed to create Nango session' },
+        { error: errorMsg || 'Failed to create Nango session' },
         { status: response.status }
       )
     }

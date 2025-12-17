@@ -62,7 +62,9 @@ export default function ConnectButton({
 
       if (!response.ok) {
         if (popup) popup.close()
-        throw new Error(data.error || 'Failed to create session')
+        const errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error || data)
+        console.error('API Error:', data)
+        throw new Error(errorMsg || 'Failed to create session')
       }
 
       const connectUrl = data.connectUrl
