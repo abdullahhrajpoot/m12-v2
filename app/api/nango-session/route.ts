@@ -55,9 +55,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log('Nango session created successfully:', {
+      connect_link: data.data?.connect_link,
+      connection_id: data.data?.connection_id,
+      full_response: JSON.stringify(data, null, 2)
+    })
+
     return NextResponse.json({ 
-      connectUrl: data.data.connect_link,
-      connectionId: data.data.connection_id
+      connectUrl: data.data?.connect_link,
+      connectionId: data.data?.connection_id
     })
   } catch (error) {
     console.error('Nango session creation error:', error)
