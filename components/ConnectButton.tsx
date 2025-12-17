@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase-client'
 
 interface ConnectButtonProps {
   text?: string
@@ -17,42 +18,35 @@ export default function ConnectButton({
   className = "" 
 }: ConnectButtonProps) {
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const supabase = createClient()
 
   const handleConnect = async () => {
     setLoading(true)
 
     try {
-      // Call our Next.js API route to create Nango session (server-side)
-      const response = await fetch('/api/nango-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userId: 'user-' + Date.now() // In production, use Supabase user ID
-        })
+      // Sign in with Google OAuth using Supabase Auth
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        const errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error || data)
-        console.error('API Error:', data)
-        throw new Error(errorMsg || 'Failed to create session')
+      if (error) {
+        throw error
       }
 
-      const connectUrl = data.connectUrl
-
-      if (connectUrl) {
-        // Redirect the current window to Nango OAuth flow
-        window.location.href = connectUrl
-      } else {
-        throw new Error('No connect URL received')
-      }
-
-    } catch (error) {
-      console.error('Nango Connection Error:', error)
-      toast.error("Connection failed. Check console for details.")
+      // Supabase will handle the redirect automatically
+      // The user will be redirected to Google, then back to /auth/callback
+      
+    } catch (error: any) {
+      console.error('Supabase Auth Error:', error)
+      toast.error(error.message || "Connection failed. Please try again.")
       setLoading(false)
     }
   }
