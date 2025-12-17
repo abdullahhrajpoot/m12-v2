@@ -1,21 +1,49 @@
-# TLDRpal Project Rules
+# Bippity.boo Project Rules
 
 ## Project Overview
-TLDRpal is an intelligent family communication assistant that:
+Bippity.boo is an intelligent family communication assistant that:
 1. Aggregates information from multiple sources (schools, extracurriculars, childcare)
 2. Organizes into calendar events, tasks, and summaries
 3. Identifies scheduling conflicts
 4. Suggests resolutions
 5. Acts on behalf of parents (sends RSVPs, coordinates with others)
 
+"Let something else keep track for once."
+
 Email is the starting input source; planned sources include school portals, activity platforms, messaging, and documents.
 
 ## Tech Stack
-- **Workflow automation**: n8n (cloud instance)
+- **Frontend**: Next.js on Railway (migrating from Base44)
+- **Workflow automation**: n8n Cloud
 - **Database**: Supabase (PostgreSQL)
-- **Auth/OAuth**: Nango (multi-tenant OAuth management)
-- **AI**: Claude API for parsing and extraction
+- **Auth**: Supabase Auth
+- **OAuth**: Nango (multi-tenant OAuth management)
+- **AI**: ChatGPT via n8n agent
 - **Target architecture**: Multi-tenant SaaS
+
+## Frontend Architecture
+
+### Current State
+- Migrating from Base44 (broken logic, keeping visual style)
+- Reference files in `/reference` folder show Base44 design to preserve
+
+### Pages
+| Route | Purpose |
+|-------|---------|
+| `/` | Landing page + Login button (Nango OAuth) |
+| `/dashboard` | Display family_facts, calendar, tasks from Supabase |
+| `/onboarding` | Post-signup flow to confirm family_facts |
+
+### Frontend Conventions
+- Use Next.js App Router
+- Supabase client for auth + data (no separate API server)
+- Login triggers Nango OAuth flow
+- Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_NANGO_PUBLIC_KEY`
+
+### Deployment
+- Host: Railway
+- Domain: bippity.boo
+- Deploy via `railway up` or git push
 
 ## Architecture Principles
 - All input sources normalize to `unified_events` table before processing
@@ -32,7 +60,7 @@ Email is the starting input source; planned sources include school portals, acti
 - Log important operations for debugging
 
 ## n8n Workflow Conventions
-- Workflow JSON files live in `/workflows`
+- Workflows run on n8n Cloud (not self-hosted)
 - Name workflows descriptively: `email-to-calendar-event.json`
 - Use sticky notes in n8n to document complex logic
 - Always include error handling nodes
@@ -43,7 +71,7 @@ Email is the starting input source; planned sources include school portals, acti
 - `unified_events`: All incoming communications (single source of truth)
 - `calendar_events`: Parsed events with title, start_time, end_time, source_item_id
 - `tasks`: Extracted action items (domino model — first task only, following task holds rest)
-- `family_facts`: Context about each family (kids, schools, activities)
+- `family_facts`: Context about each family (kids, schools, activities) — displayed on dashboard
 - `family_keywords`: Keywords for email search filtering
 - Deduplication uses composite key of (event_title, start_time, source)
 
@@ -81,9 +109,10 @@ When I ask you to:
 - "Add a new source" → Design ingestion flow, normalization to unified_events, source-specific parsing
 - "Optimize tokens" → Look for redundant context, suggest field extraction over full-text
 - "Add a feature" → Consider multi-tenant implications, idempotency, audit trail
+- "Build frontend" → Use Next.js App Router, Supabase client, preserve Base44 visual style from /reference
 
 ## Files to Reference
-- @CONTEXT.md for full project context and roadmap
+- @CONTEXT.md for full project context, design principles, and roadmap
 
 ## Test Configuration
 - Test account: chungfamilyparents@gmail.com
