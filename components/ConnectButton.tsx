@@ -17,34 +17,9 @@ export default function ConnectButton({
   className = "" 
 }: ConnectButtonProps) {
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
-
-  useEffect(() => {
-    // Listen for messages from popup
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return
-
-      if (event.data?.type === 'NANGO_OAUTH_SUCCESS') {
-        setLoading(false)
-        toast.success("Successfully connected to Google!")
-        setTimeout(() => {
-          router.push('/whatwefound') // Navigate to whatwefound after successful connection
-        }, 1000)
-      }
-    }
-
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [router])
 
   const handleConnect = async () => {
     setLoading(true)
-    const popup = window.open('', 'google-login', 'width=600,height=700')
-    
-    if (popup) {
-      popup.document.title = "Connecting..."
-      popup.document.body.innerHTML = '<div style="font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh;">Loading secure login...</div>'
-    }
 
     try {
       // Call our Next.js API route to create Nango session (server-side)
@@ -61,7 +36,6 @@ export default function ConnectButton({
       const data = await response.json()
 
       if (!response.ok) {
-        if (popup) popup.close()
         const errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error || data)
         console.error('API Error:', data)
         throw new Error(errorMsg || 'Failed to create session')
@@ -69,15 +43,15 @@ export default function ConnectButton({
 
       const connectUrl = data.connectUrl
 
-      if (popup && connectUrl) {
-        popup.location.href = connectUrl
+      if (connectUrl) {
+        // Redirect the current window to Nango OAuth flow
+        window.location.href = connectUrl
       } else {
-        window.open(connectUrl, '_blank', 'width=600,height=700')
+        throw new Error('No connect URL received')
       }
 
     } catch (error) {
       console.error('Nango Connection Error:', error)
-      if (popup) popup.close()
       toast.error("Connection failed. Check console for details.")
       setLoading(false)
     }
