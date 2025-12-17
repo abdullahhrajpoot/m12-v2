@@ -30,9 +30,9 @@ function NangoCallbackContent() {
         window.close()
       }, 500)
     } else if (typeof window !== 'undefined') {
-      // If not in a popup, redirect to onboarding
-      console.log('Not in popup, redirecting to onboarding')
-      router.push('/onboarding')
+      // If not in a popup, redirect to whatwefound
+      console.log('Not in popup, redirecting to whatwefound')
+      router.push('/whatwefound')
     }
   }, [searchParams, router])
 

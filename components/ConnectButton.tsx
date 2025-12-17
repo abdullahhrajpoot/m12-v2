@@ -28,7 +28,7 @@ export default function ConnectButton({
         setLoading(false)
         toast.success("Successfully connected to Google!")
         setTimeout(() => {
-          router.push('/onboarding') // Navigate to onboarding after successful connection
+          router.push('/whatwefound') // Navigate to whatwefound after successful connection
         }, 1000)
       }
     }
