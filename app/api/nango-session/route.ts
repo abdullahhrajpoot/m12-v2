@@ -36,13 +36,22 @@ export async function POST(request: NextRequest) {
       console.error('Nango API Error:', {
         status: response.status,
         statusText: response.statusText,
-        data: data
+        data: data,
+        errors: data.error?.errors || data.errors
       })
-      const errorMsg = typeof data.error === 'string' 
-        ? data.error 
-        : data.message || JSON.stringify(data)
+      // Extract detailed error messages
+      let errorMsg = 'Failed to create Nango session'
+      if (data.error?.errors && Array.isArray(data.error.errors)) {
+        errorMsg = data.error.errors.map((e: any) => e.message || JSON.stringify(e)).join(', ')
+      } else if (typeof data.error === 'string') {
+        errorMsg = data.error
+      } else if (data.message) {
+        errorMsg = data.message
+      } else {
+        errorMsg = JSON.stringify(data)
+      }
       return NextResponse.json(
-        { error: errorMsg || 'Failed to create Nango session' },
+        { error: errorMsg },
         { status: response.status }
       )
     }
