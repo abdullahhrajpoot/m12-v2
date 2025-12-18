@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { ArrowRight, Check, Calendar, Mail, Sparkles, MousePointer2, Send, Phone, ListChecks } from 'lucide-react'
 import ConnectButton from '@/components/ConnectButton'
 
@@ -208,6 +210,20 @@ const CalendarMockup = () => (
 // --- Main Page Component ---
 
 export default function Home() {
+  const router = useRouter()
+
+  // Handle OAuth callback code if redirected here instead of /auth/callback
+  useEffect(() => {
+    // Check URL for code parameter (client-side only)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+      if (code) {
+        // Redirect to the callback route with the code
+        router.replace(`/auth/callback?code=${code}`)
+      }
+    }
+  }, [router])
   return (
     <div className="relative min-h-screen">
       <ChaosBackground />

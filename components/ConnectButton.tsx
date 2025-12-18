@@ -25,11 +25,22 @@ export default function ConnectButton({
     setLoading(true)
 
     try {
+      // Get the app URL from environment variable or use window.location.origin
+      // But avoid localhost URLs in production
+      let appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+      
+      // If we're on bippity.boo, always use https://bippity.boo
+      if (window.location.hostname === 'bippity.boo') {
+        appUrl = 'https://bippity.boo'
+      }
+      
+      console.log('ConnectButton - OAuth redirect URL:', appUrl)
+      
       // Sign in with Google OAuth using Supabase Auth
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${appUrl}/auth/callback`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
