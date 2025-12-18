@@ -37,10 +37,19 @@ export default function ConnectButton({
       console.log('ConnectButton - OAuth redirect URL:', appUrl)
       
       // Sign in with Google OAuth using Supabase Auth
+      // Request scopes for Gmail, Calendar, and Tasks access
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${appUrl}/auth/callback`,
+          scopes: [
+            'email',
+            'profile',
+            'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.modify',
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/tasks',
+          ].join(' '),
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
