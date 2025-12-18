@@ -90,6 +90,31 @@ export async function GET(request: Request) {
             console.error('Error storing OAuth tokens:', insertError)
           } else {
             console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
+            
+            // Trigger n8n onboarding workflow (non-blocking - don't fail OAuth if webhook fails)
+            const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
+              'https://chungxchung.app.n8n.cloud/webhook/e44506e6-e91d-47a1-8765-9a7db55da369'
+            
+            // Call webhook - don't await to avoid blocking redirect, but handle errors
+            fetch(n8nWebhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userId: userId,
+                email: sessionData.session.user.email,
+              }),
+            }).then((response) => {
+              if (!response.ok) {
+                console.error('n8n webhook returned error status:', response.status)
+              } else {
+                console.log('n8n onboarding webhook triggered successfully for user:', userId)
+              }
+            }).catch((webhookError) => {
+              // Log but don't fail OAuth flow if webhook call fails
+              console.error('Error calling n8n onboarding webhook:', webhookError)
+            })
           }
         } catch (tokenError) {
           // Log but don't fail the OAuth flow if token storage fails
