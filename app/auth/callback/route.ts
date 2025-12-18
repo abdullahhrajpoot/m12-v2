@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -45,10 +46,58 @@ export async function GET(request: Request) {
       }
     )
     
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
     if (error) {
       console.error('Error exchanging code for session:', error)
       return NextResponse.redirect(new URL('/?error=auth_failed', appUrl))
+    }
+
+    // Store OAuth provider tokens for n8n workflows
+    // Provider tokens are only available in the session object immediately after OAuth
+    if (sessionData?.session?.provider_token && sessionData?.session?.user) {
+      const userId = sessionData.session.user.id
+      const providerToken = sessionData.session.provider_token
+      const providerRefreshToken = sessionData.session.provider_refresh_token
+      const provider = sessionData.session.user.app_metadata?.provider || 'google'
+      const expiresAt = sessionData.session.expires_at
+        ? new Date(sessionData.session.expires_at * 1000).toISOString()
+        : null
+
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+      if (serviceRoleKey && providerToken) {
+        try {
+          const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceRoleKey
+          )
+
+          // Store tokens in oauth_tokens table for n8n to retrieve
+          const { error: insertError } = await supabaseAdmin
+            .from('oauth_tokens')
+            .upsert({
+              user_id: userId,
+              provider: provider,
+              access_token: providerToken,
+              refresh_token: providerRefreshToken || null,
+              expires_at: expiresAt,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: 'user_id,provider' // Update if exists
+            })
+
+          if (insertError) {
+            console.error('Error storing OAuth tokens:', insertError)
+          } else {
+            console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
+          }
+        } catch (tokenError) {
+          // Log but don't fail the OAuth flow if token storage fails
+          console.error('Error storing OAuth tokens:', tokenError)
+        }
+      } else if (!providerToken) {
+        console.warn('No provider token found in session for user:', userId)
+      }
     }
   }
 

@@ -187,3 +187,4 @@ In Nango Dashboard:
 3. **Environment variables not working:** Ensure `NEXT_PUBLIC_` prefix is correct
 4. **OAuth not working:** Check Nango redirect URLs and public key
 
+
