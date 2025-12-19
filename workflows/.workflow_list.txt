@@ -1,0 +1,23 @@
+# Workflow Backup - 2025-12-19
+# Total workflows found: 115
+# Filtering strategy: Skip archived workflows with "copy" or "test" in name if duplicate exists
+
+Workflows to backup:
+- Parallelized_Onboarding_Supabase (active, NEW)
+- [ARCHIVED] Google Auth Supabase Powered Onboarding (active backup)
+- TLDRpal - AI Email Processor
+- TLDRpal - Scheduled Email Check
+- TLDRpal - Extract Keywords from Facts
+- Oct 7 BETA (active)
+- Kelly Family bot (active)
+- Moore Family Beta (active)
+- Farah Family Beta (active)
+- Low Family Beta (active)
+- Elkington BETA (active)
+- Ferrari BETA (active)
+- LeoKaius Oct 7 BETA (active)
+- Ninisbot BETA (active)
+- autoclicker (active)
+- onboarding email clicker (active)
+- And other non-duplicate workflows...
+

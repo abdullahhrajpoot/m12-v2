@@ -1,0 +1,593 @@
+{
+  "name": "Parallelized_Onboarding_Supabase",
+  "id": "vexJG6Y46lso0qKf",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parallelized-supabase-oauth",
+        "options": {
+          "responseData": "firstEntryJson"
+        }
+      },
+      "name": "Supabase OAuth Webhook",
+      "id": "webhook-node",
+      "typeVersion": 2.1,
+      "position": [
+        -848,
+        208
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "webhookId": "0ec3756a-74dc-42ee-8960-2bc8ac6c2a90"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-user-id",
+              "leftValue": "={{ $json.body.userId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "name": "OAuth Successful?",
+      "id": "oauth-check",
+      "typeVersion": 2.3,
+      "position": [
+        -624,
+        208
+      ],
+      "type": "n8n-nodes-base.if"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
+            }
+          ]
+        }
+      },
+      "name": "Check if User Exists",
+      "id": "check-user",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        112
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-item-count",
+              "leftValue": "={{ $json.itemCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "name": "Is New User?",
+      "id": "is-new-user",
+      "typeVersion": 2.3,
+      "position": [
+        -224,
+        112
+      ],
+      "type": "n8n-nodes-base.if"
+    },
+    {
+      "parameters": {
+        "tableId": "users",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.email }}"
+            }
+          ]
+        }
+      },
+      "name": "Create User",
+      "id": "create-user",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "tableId": "connected_services",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
+            },
+            {
+              "fieldId": "service_name",
+              "fieldValue": "Gmail"
+            },
+            {
+              "fieldId": "service_type",
+              "fieldValue": "email"
+            }
+          ]
+        }
+      },
+      "name": "Create Connected Service",
+      "id": "create-connected-service",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "users",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "last_login_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "active"
+            }
+          ]
+        }
+      },
+      "name": "Update Existing User",
+      "id": "update-user",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://bippity.boo/api/auth/tokens",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
+            },
+            {
+              "name": "provider",
+              "value": "google"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.N8N_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Token from Supabase",
+      "id": "get-token",
+      "typeVersion": 4.3,
+      "position": [
+        448,
+        112
+      ],
+      "type": "n8n-nodes-base.httpRequest"
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "school OR academy daycare OR preschool OR nursery OR montessori OR prek OR kindergarten OR elementary OR conservatory OR tutoring OR enrichment OR soccer OR basketball OR baseball OR softball OR volleyball OR football OR swimming OR tennis OR cheerleading OR dance OR wrestling OR gymnastics OR golf OR club OR studio OR dojo OR league OR gym OR camp OR lessons OR class OR martial OR scouts"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Search Gmail For Usual Suspects",
+      "id": "search-gmail",
+      "typeVersion": 4.3,
+      "position": [
+        672,
+        112
+      ],
+      "type": "n8n-nodes-base.httpRequest"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "=messages",
+        "options": {}
+      },
+      "name": "Split Out",
+      "id": "split-out",
+      "typeVersion": 1,
+      "position": [
+        880,
+        112
+      ],
+      "type": "n8n-nodes-base.splitOut"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Add access_token to each item from the token node\nconst token = $node['Get Token from Supabase'].json.access_token;\nconst items = $input.all();\n\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    access_token: token\n  }\n}));"
+      },
+      "name": "Add Token To Items",
+      "id": "add-token",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        112
+      ],
+      "type": "n8n-nodes-base.code"
+    },
+    {
+      "parameters": {
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Pull Discovered Emails",
+      "id": "pull-emails",
+      "typeVersion": 4.3,
+      "position": [
+        1472,
+        112
+      ],
+      "type": "n8n-nodes-base.httpRequest"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Helper to decode Gmail Base64-URL data\nfunction decodeBase64Url(data) {\n    return Buffer.from(data, 'base64url').toString('utf-8');\n}\n\nconst results = [];\nconst inputItems = $input.all();\n\nfor (const item of inputItems) {\n    const message = item.json.payload;\n    let bodyText = '';\n\n    if (message && message.parts && message.parts.length) {\n        for (const part of message.parts) {\n            if (part.mimeType === 'text/plain' && part.body && part.body.data) {\n                bodyText += decodeBase64Url(part.body.data);\n            }\n        }\n    } else if (message && message.body && message.body.data) {\n        bodyText = decodeBase64Url(message.body.data);\n    }\n\n    results.push({ \n        json: { \n            id: item.json.id, \n            text: bodyText \n        } \n    });\n}\n\nreturn results;"
+      },
+      "name": "Convert To Readable Email",
+      "id": "convert-readable",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        112
+      ],
+      "type": "n8n-nodes-base.code"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=System Prompt:\nYou are an entity extraction agent. Your job is to read emails and extract factual information about people, places, and ongoing schedules into simple, declarative sentences.\nWhat to extract:\n\nPeople and their attributes (names, grades, ages, roles)\nRelationships between people and organizations (schools, activities, teams)\nOngoing/recurring schedules (regular practice times, class schedules, recurring events)\n\nWhat NOT to extract:\n\nOne-time events (a specific field trip, a single performance date, a deadline)\nTemporary announcements\nRequests or action items\nPolicies, rules, or procedures\nAbstract concepts (these are not entities)\n\nValid entity types:\n\nPeople: children, teachers, coaches, parents, administrators (must be a specific individual)\nOrganizations: schools, studios, clubs, leagues\nActivities: sports, classes, programs with recurring schedules\n\nNOT valid entities:\n\nPolicies, guidelines, rules\nGeneral announcements\nConcepts or categories\n\n\nRole clarity requirement:\nWhen extracting information about a person, you must clearly identify their role. Do not associate a name with a group unless the relationship is explicit.\n\n✓ Ms. Chen is a teacher at Riverside Elementary.\n✓ Ms. Chen teaches Grade 1 at Riverside Elementary.\n✗ Ms. Chen is in Grade 1. (ambiguous—is she a student or teacher?)\n\nIf a name appears but the role is unclear, note it:\n\nMs. Chen is associated with Grade 1 at Riverside Elementary. (role unclear—possibly teacher)\n\n\nConfidence assessment (internal use only):\nAssess each fact internally but do not include confidence labels in output:\n\nhigh: Explicitly stated, unambiguous (e.g., \"Your child Emma is enrolled in Grade 2\")\nmedium: Strongly implied or inferred from context (e.g., email from \"ABC Elementary\" about \"your student\" implies the child attends ABC Elementary)\nlow: Requires assumption or is partially incomplete\n\n\nConsolidation rules:\nWhen processing multiple emails:\n\nMerge duplicates: If the same fact appears multiple times, keep it once and upgrade confidence if confirmed by multiple sources.\nResolve conflicts: If emails contradict each other:\n\nPrefer more recent information (if dates are available)\nPrefer explicit statements over inferences\nIf unresolvable, note the conflict in parentheses: (or possibly [other value])\n\n\nFill in gaps: If one email says \"Someone does ballet\" and another reveals \"Emma has class Tuesday,\" connect them if context supports it.\nEntity matching: Treat these as the same person if context strongly suggests it:\n\n\"Emma\" and \"Emma S.\" from the same school\n\"Your daughter\" from a school where only one child is enrolled\nWhen uncertain, keep separate with a note: (possibly same as [other entity])\n\n\n\n\nOutput format:\nGroup all facts by entity. Within each entity, list facts from most confident to least confident. Use simple sentences. Note incomplete information or ambiguity in parentheses.\n[Entity Name] ([role/type])\n- [most confident fact]\n- [next most confident fact]\n- ...\nFor unknown entities, use a descriptive placeholder:\nUnknown child (from Dance Academy emails)\n- ...\n\nExample output:\nEmma (child)\n- Emma goes to Riverside Elementary.\n- Emma is in Grade 1.\n- Emma does ballet on Tuesdays. (inferred from Dance Academy email)\n\nMs. Chen (teacher)\n- Ms. Chen teaches Grade 1 at Riverside Elementary.\n\nJake (child)\n- Jake does soccer.\n- Jake might also do baseball. (unconfirmed)\n\nSoccer - Riverside Youth League (activity)\n- Practice is on Wednesdays at 4pm.\n- Games are on Saturday mornings.\n\nUnknown child (from Lincoln Elementary emails)\n- Attends Lincoln Elementary.\n- Is in Grade 2.\n\nInput:\n{{ $json.text }}\nOutput:\nExtract and consolidate all entity facts, grouped by entity:",
+        "options": {}
+      },
+      "name": "Combined AI Agent",
+      "id": "combined-agent",
+      "typeVersion": 3,
+      "position": [
+        1856,
+        112
+      ],
+      "type": "@n8n/n8n-nodes-langchain.agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o"
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0.3
+        }
+      },
+      "name": "OpenAI Chat Model GPT-4o",
+      "id": "gpt4o-model",
+      "typeVersion": 1.3,
+      "position": [
+        1728,
+        320
+      ],
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "credentials": {
+        "openAiApi": {
+          "id": "D1MyVMAJ9zLNahg3",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse entity-based AI output into sentence array\n// Get userId from webhook node (Code nodes break paired item chain)\nlet userId = null;\ntry {\n  userId = $node['Supabase OAuth Webhook'].json.body.userId;\n} catch (e) {\n  const items = $input.all();\n  if (items.length > 0 && items[0].json && items[0].json.userId) {\n    userId = items[0].json.userId;\n  }\n}\n\nconst items = $input.all();\nconst allFacts = [];\n\nfor (const item of items) {\n  let outputText = '';\n  \n  // Extract output from AI agent\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else {\n    continue;\n  }\n  \n  // Parse entity-based output format:\n  // [Entity Name]\n  // - fact 1\n  // - fact 2\n  \n  // Split by lines and extract facts (lines starting with '-')\n  const lines = outputText.split('\\n');\n  let currentEntity = null;\n  \n  for (const line of lines) {\n    const trimmed = line.trim();\n    \n    // Check if this is an entity header (not starting with -, usually in [])\n    if (trimmed && !trimmed.startsWith('-') && !trimmed.startsWith('•')) {\n      // This might be an entity name\n      currentEntity = trimmed.replace(/[\\[\\]]/g, '').trim();\n    }\n    // Check if this is a fact (starts with - or •)\n    else if (trimmed.startsWith('-') || trimmed.startsWith('•')) {\n      // Extract the fact text (remove the bullet/dash)\n      let fact = trimmed.replace(/^[-•]\\s*/, '').trim();\n      \n      // Skip empty facts\n      if (fact && fact.length > 5) {\n        // Ensure fact ends with punctuation\n        if (!fact.match(/[.!?]$/)) {\n          fact += '.';\n        }\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity && !fact.toLowerCase().includes(currentEntity.toLowerCase().split(' ')[0])) {\n          fact = `${currentEntity}: ${fact}`;\n        }\n        \n        allFacts.push(fact);\n      }\n    }\n  }\n}\n\n// Deduplicate facts (case-insensitive)\nconst uniqueFacts = [];\nconst seenFacts = new Set();\n\nfor (const fact of allFacts) {\n  const normalized = fact.toLowerCase().trim();\n  if (!seenFacts.has(normalized)) {\n    seenFacts.add(normalized);\n    uniqueFacts.push(fact);\n  }\n}\n\n// Return sentences with userId preserved\nreturn [{\n  json: {\n    sentences: uniqueFacts,\n    userId: userId,\n    total_facts: uniqueFacts.length,\n    raw_output: items.map(i => i.json?.output || '').join('\\n\\n---\\n\\n').substring(0, 1000)\n  }\n}];"
+      },
+      "name": "Parse Sentences Array",
+      "id": "parse-sentences",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        112
+      ],
+      "type": "n8n-nodes-base.code"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "onboarding_summaries",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.userId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "summary_sentences",
+              "fieldValue": "={{ $json.sentences }}"
+            }
+          ]
+        }
+      },
+      "name": "Save Onboarding Summaries",
+      "id": "save-summaries",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        112
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-item-count",
+              "leftValue": "={{ $json.itemCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "name": "Check Update Result",
+      "id": "check-update",
+      "typeVersion": 2.3,
+      "position": [
+        2432,
+        32
+      ],
+      "type": "n8n-nodes-base.if"
+    },
+    {
+      "parameters": {
+        "tableId": "onboarding_summaries",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $node['Parse Sentences Array'].json.userId }}"
+            },
+            {
+              "fieldId": "summary_sentences",
+              "fieldValue": "={{ $node['Parse Sentences Array'].json.sentences }}"
+            }
+          ]
+        }
+      },
+      "name": "Insert Onboarding Summaries",
+      "id": "insert-summaries",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        112
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Supabase OAuth Webhook": {
+      "main": [[{"node": "OAuth Successful?", "type": "main", "index": 0}]]
+    },
+    "OAuth Successful?": {
+      "main": [[{"node": "Check if User Exists", "type": "main", "index": 0}]]
+    },
+    "Check if User Exists": {
+      "main": [[{"node": "Is New User?", "type": "main", "index": 0}]]
+    },
+    "Is New User?": {
+      "main": [
+        [{"node": "Create User", "type": "main", "index": 0}],
+        [{"node": "Update Existing User", "type": "main", "index": 0}]
+      ]
+    },
+    "Create User": {
+      "main": [[{"node": "Create Connected Service", "type": "main", "index": 0}]]
+    },
+    "Create Connected Service": {
+      "main": [[{"node": "Get Token from Supabase", "type": "main", "index": 0}]]
+    },
+    "Update Existing User": {
+      "main": [[{"node": "Get Token from Supabase", "type": "main", "index": 0}]]
+    },
+    "Get Token from Supabase": {
+      "main": [[{"node": "Search Gmail For Usual Suspects", "type": "main", "index": 0}]]
+    },
+    "Search Gmail For Usual Suspects": {
+      "main": [[{"node": "Split Out", "type": "main", "index": 0}]]
+    },
+    "Split Out": {
+      "main": [[{"node": "Add Token To Items", "type": "main", "index": 0}]]
+    },
+    "Add Token To Items": {
+      "main": [[{"node": "Pull Discovered Emails", "type": "main", "index": 0}]]
+    },
+    "Pull Discovered Emails": {
+      "main": [[{"node": "Convert To Readable Email", "type": "main", "index": 0}]]
+    },
+    "Convert To Readable Email": {
+      "main": [[{"node": "Combined AI Agent", "type": "main", "index": 0}]]
+    },
+    "Combined AI Agent": {
+      "main": [[{"node": "Parse Sentences Array", "type": "main", "index": 0}]]
+    },
+    "OpenAI Chat Model GPT-4o": {
+      "ai_languageModel": [[{"node": "Combined AI Agent", "type": "ai_languageModel", "index": 0}]]
+    },
+    "Parse Sentences Array": {
+      "main": [[{"node": "Save Onboarding Summaries", "type": "main", "index": 0}]]
+    },
+    "Save Onboarding Summaries": {
+      "main": [[{"node": "Check Update Result", "type": "main", "index": 0}]]
+    },
+    "Check Update Result": {
+      "main": [[{"node": "Insert Onboarding Summaries", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "createdAt": "2025-12-19T20:26:31.860Z",
+  "updatedAt": "2025-12-19T23:39:12.719Z",
+  "versionId": "a671eded-4f58-4fec-a2c1-60d430265741"
+}
+

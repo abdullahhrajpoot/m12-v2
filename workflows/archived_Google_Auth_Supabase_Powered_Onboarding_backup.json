@@ -1,0 +1,32 @@
+{
+  "name": "Google Auth Supabase Powered Onboarding",
+  "description": "ARCHIVED - Original workflow saved on 2025-12-19. Replaced by Parallelized_Onboarding_Supabase",
+  "archived_date": "2025-12-19T19:30:00Z",
+  "original_id": "HwRvoNIeRyF8W0NG",
+  "performance": {
+    "avg_execution_time": "480 seconds (8 minutes)",
+    "last_successful_run": "13196"
+  },
+  "workflow": {
+    "nodes": [
+      {
+        "parameters": {
+          "options": {
+            "responseMode": "lastNode",
+            "responseData": "firstEntryJson",
+            "onError": "continueRegularOutput"
+          },
+          "httpMethod": "POST",
+          "path": "supabase-oauth"
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [-848, 208],
+        "id": "db5da876-86da-471b-8e8a-84a167a3467d",
+        "name": "Supabase OAuth Webhook",
+        "webhookId": "e44506e6-e91d-47a1-8765-9a7db55da369"
+      }
+    ]
+  }
+}
+
