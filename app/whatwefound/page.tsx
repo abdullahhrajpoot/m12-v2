@@ -149,6 +149,7 @@ export default function WhatWeFound() {
     let elapsedInterval: NodeJS.Timeout
     let checkInterval: NodeJS.Timeout
     let startTime = Date.now()
+    let hasLoadedFacts = false
 
     // Start progress simulation
     progressInterval = setInterval(() => {
@@ -168,6 +169,8 @@ export default function WhatWeFound() {
 
     // Poll for results
     const checkForResults = async () => {
+      if (hasLoadedFacts) return // Stop polling if we've already loaded facts
+      
       try {
         const response = await fetch('/api/onboarding/summary')
         
@@ -175,6 +178,7 @@ export default function WhatWeFound() {
           const data = await response.json()
           
           if (data.summary_sentences && data.summary_sentences.length > 0) {
+            hasLoadedFacts = true
             setFacts(data.summary_sentences)
             setProgress(100)
             setLoading(false)
@@ -196,15 +200,14 @@ export default function WhatWeFound() {
 
     // Force show results after 2 minutes (failsafe)
     const timeout = setTimeout(() => {
-      clearInterval(progressInterval)
-      clearInterval(elapsedInterval)
-      clearInterval(checkInterval)
-      
-      if (facts.length === 0) {
+      if (!hasLoadedFacts) {
         // If no facts loaded after 2 minutes, show error
         setError("Taking longer than expected. Please refresh the page or contact support.")
         setLoading(false)
       }
+      clearInterval(progressInterval)
+      clearInterval(elapsedInterval)
+      clearInterval(checkInterval)
     }, 120000) // 2 minutes
 
     return () => {
@@ -213,7 +216,7 @@ export default function WhatWeFound() {
       clearInterval(checkInterval)
       clearTimeout(timeout)
     }
-  }, [facts.length])
+  }, []) // Run once on mount
 
   const handleSubmit = async (isAllGood = false) => {
     setSubmitting(true)
