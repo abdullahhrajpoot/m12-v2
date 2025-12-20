@@ -173,11 +173,11 @@ export default function WhatWeFound() {
       
       try {
         const response = await fetch('/api/onboarding/summary')
+        const data = await response.json()
         
         if (response.ok) {
-          const data = await response.json()
-          
-          if (data.summary_sentences && data.summary_sentences.length > 0) {
+          // Check if we have summary sentences
+          if (data.summary_sentences && Array.isArray(data.summary_sentences) && data.summary_sentences.length > 0) {
             hasLoadedFacts = true
             setFacts(data.summary_sentences)
             setProgress(100)
@@ -186,11 +186,18 @@ export default function WhatWeFound() {
             clearInterval(progressInterval)
             clearInterval(elapsedInterval)
             clearInterval(checkInterval)
+          } else {
+            // Data structure exists but no sentences yet - keep polling
+            console.log('No sentences yet, status:', data.status)
           }
+        } else {
+          // API returned an error
+          console.error('API error:', response.status, data)
+          // Continue polling for a bit, then show error if it persists
         }
       } catch (err) {
-        // Continue polling if error (data might not be ready yet)
-        console.log('Polling for results...', err)
+        // Network error - continue polling
+        console.error('Error fetching summary:', err)
       }
     }
 

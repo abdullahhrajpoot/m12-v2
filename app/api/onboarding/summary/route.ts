@@ -35,11 +35,14 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
+      console.error('Auth error in onboarding summary:', authError)
       return NextResponse.json(
-        { error: 'Unauthorized - please log in' },
+        { error: 'Unauthorized - please log in', details: authError?.message },
         { status: 401 }
       )
     }
+
+    console.log('Fetching onboarding summary for user:', user.id)
 
     // Fetch onboarding summary for this user
     const { data: summaryData, error: summaryError } = await supabase
@@ -49,8 +52,9 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (summaryError) {
-      // If no record exists yet, return empty state
+      // If no record exists yet, return empty state (PGRST116 = no rows returned)
       if (summaryError.code === 'PGRST116') {
+        console.log('No onboarding summary found for user:', user.id, '- returning pending state')
         return NextResponse.json({
           user_id: user.id,
           summary_sentences: [],
@@ -61,10 +65,12 @@ export async function GET(request: NextRequest) {
 
       console.error('Error fetching onboarding summary:', summaryError)
       return NextResponse.json(
-        { error: 'Error fetching onboarding data' },
+        { error: 'Error fetching onboarding data', details: summaryError.message },
         { status: 500 }
       )
     }
+
+    console.log('Found onboarding summary for user:', user.id, 'with', summaryData.summary_sentences?.length || 0, 'sentences')
 
     // Return the summary data
     return NextResponse.json({
