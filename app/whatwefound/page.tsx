@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Sparkles, MessageSquare, Send, ThumbsUp, Loader2, Clock } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Check, Sparkles, MessageSquare, Send, ThumbsUp, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
