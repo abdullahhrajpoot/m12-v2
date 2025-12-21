@@ -228,24 +228,26 @@ export default function WhatWeFound() {
   const handleSubmit = async (isAllGood = false) => {
     setSubmitting(true)
     try {
-      const response = await fetch('/api/scan-feedback', {
+      // Call API endpoint to finalize onboarding
+      const response = await fetch('/api/onboarding/finalize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          comment: isAllGood ? "It's all good!" : comment,
-          is_correct: isAllGood
+          facts: facts,
+          userEdits: isAllGood ? null : comment.trim() || null, // null if "It's All Good", otherwise the edits
         })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to submit feedback')
+        throw new Error('Failed to process facts')
       }
 
-      toast.success(isAllGood ? "Great! We're glad we got it right." : "Thanks for the feedback! We'll update your profile.")
+      toast.success(isAllGood ? "Great! We're saving your facts." : "Thanks! We're refining your facts with your edits.")
       
-      router.push('/allset')
+      // Redirect to dashboard
+      router.push('/dashboard')
     } catch (error) {
       console.error(error)
       toast.error("Something went wrong. Please try again.")
@@ -300,7 +302,7 @@ export default function WhatWeFound() {
             </h3>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {facts.map((fact, index) => (
               <FactCard key={index} fact={fact} index={index} />
             ))}
@@ -346,7 +348,7 @@ export default function WhatWeFound() {
               className="flex-1 h-12 text-base font-medium"
             >
               <Send className="w-4 h-4 mr-2" />
-              Submit Comments
+              Submit Edits/Add Facts
             </Button>
             <Button 
               onClick={() => handleSubmit(true)}
