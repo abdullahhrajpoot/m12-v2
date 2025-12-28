@@ -340,25 +340,23 @@ export default function WhatWeFound() {
             onChange={(e) => setComment(e.target.value)}
           />
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Button 
-              onClick={() => handleSubmit(false)}
-              disabled={!comment.trim() || submitting}
-              variant="outline"
-              className="flex-1 h-12 text-base font-medium"
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Submit Edits/Add Facts
-            </Button>
-            <Button 
-              onClick={() => handleSubmit(true)}
-              disabled={submitting}
-              className="flex-1 h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium"
-            >
-              <ThumbsUp className="w-4 h-4 mr-2" />
-              It's All Good
-            </Button>
-          </div>
+          <Button 
+            onClick={() => handleSubmit(comment.trim().length === 0)}
+            disabled={submitting}
+            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium"
+          >
+            {comment.trim() ? (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                Submit Edits
+              </>
+            ) : (
+              <>
+                <ThumbsUp className="w-4 h-4 mr-2" />
+                Confirm Facts Above
+              </>
+            )}
+          </Button>
         </motion.div>
 
         <p className="text-center text-sm text-slate-400 mt-8">
