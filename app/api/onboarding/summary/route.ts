@@ -72,15 +72,11 @@ export async function GET(request: NextRequest) {
 
     console.log('Found onboarding summary for user:', user.id, 'with', summaryData.summary_sentences?.length || 0, 'sentences')
 
-    // Return the summary data
+    // Return the summary data (simplified schema - only essential fields)
     return NextResponse.json({
       user_id: summaryData.user_id,
       summary_sentences: summaryData.summary_sentences || [],
-      children: summaryData.children || [],
-      unassigned_schools: summaryData.unassigned_schools || [],
-      unassigned_activities: summaryData.unassigned_activities || [],
-      emails_analyzed_count: summaryData.emails_analyzed_count || 0,
-      status: summaryData.status || 'completed',
+      status: summaryData.status || 'pending_review',
       created_at: summaryData.created_at,
       updated_at: summaryData.updated_at
     })
