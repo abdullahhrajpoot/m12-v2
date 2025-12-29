@@ -41,7 +41,7 @@ const LoadingState = ({ progress, elapsed, tip }: LoadingStateProps) => {
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-3">Analyzing your inbox...</h1>
           <p className="text-lg text-slate-600 max-w-lg mx-auto">
-            This typically takes about 90 seconds. We're searching for keywords like "school," "elementary," "soccer," and "ballet" to find what matters to your family.
+            This can take up to 6 minutes. We're searching for keywords like "school," "elementary," "soccer," and "ballet" to find what matters to your family.
           </p>
         </motion.div>
 
@@ -125,7 +125,7 @@ export default function WhatWeFound() {
   const [tip, setTip] = useState("")
   const router = useRouter()
 
-  const EXPECTED_DURATION = 90 // 90 seconds expected processing time
+  const EXPECTED_DURATION = 360 // 6 minutes maximum wait time
 
   // Fetch random tip on mount
   useEffect(() => {
@@ -205,17 +205,17 @@ export default function WhatWeFound() {
     checkForResults()
     checkInterval = setInterval(checkForResults, 3000)
 
-    // Force show results after 2 minutes (failsafe)
+    // Force show results after 6 minutes (failsafe)
     const timeout = setTimeout(() => {
       if (!hasLoadedFacts) {
-        // If no facts loaded after 2 minutes, show error
+        // If no facts loaded after 6 minutes, show error
         setError("Taking longer than expected. Please refresh the page or contact support.")
         setLoading(false)
       }
       clearInterval(progressInterval)
       clearInterval(elapsedInterval)
       clearInterval(checkInterval)
-    }, 120000) // 2 minutes
+    }, 360000) // 6 minutes
 
     return () => {
       clearInterval(progressInterval)
