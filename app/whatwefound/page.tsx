@@ -445,12 +445,6 @@ export default function WhatWeFound() {
         </motion.div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-8">
-          <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-100">
-            <Check className="w-5 h-5 text-emerald-500" />
-            <h3 className="font-bold text-slate-900">
-              {facts.length} fact{facts.length !== 1 ? 's' : ''} extracted
-            </h3>
-          </div>
           
           <div className="space-y-4">
             {groupedFacts.map((group, groupIndex) => (
