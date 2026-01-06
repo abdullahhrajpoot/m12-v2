@@ -41,7 +41,7 @@ const LoadingState = ({ progress, elapsed, tip }: LoadingStateProps) => {
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-3">Getting to know your family...</h1>
           <p className="text-lg text-slate-600 max-w-lg mx-auto">
-            I'm scanning your recent emails to learn about your kids' schools, activities, and schedules. This takes about a minute.
+            I'm scanning your recent emails to learn about your kids' schools, activities, and schedules. This can take up to 3 minutes.
           </p>
           <p className="text-sm text-slate-400 mt-4 max-w-md mx-auto">
             This is just a first pass — I won't catch everything, and I might get some things wrong. You'll be able to correct me next.
@@ -233,7 +233,7 @@ export default function WhatWeFound() {
   const [submitted, setSubmitted] = useState(false)
   const router = useRouter()
 
-  const EXPECTED_DURATION = 360 // 6 minutes maximum wait time
+  const EXPECTED_DURATION = 180 // 3 minutes maximum wait time
 
   // Fetch random tip on mount
   useEffect(() => {
@@ -259,12 +259,14 @@ export default function WhatWeFound() {
     let startTime = Date.now()
     let hasLoadedFacts = false
 
-    // Start progress simulation
+    // Start progress simulation - calibrated for 3 minutes (180 seconds)
+    // We want to reach ~95% around 170 seconds
     progressInterval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 95) return prev // Cap at 95% until we get real data
-        // Slow down as we approach 90%
-        const increment = prev < 50 ? 2 : prev < 80 ? 1 : 0.5
+        // Slow down as we approach 90% - targeting ~95% at 170 seconds
+        // 0-50%: ~60 seconds (0.83%/sec), 50-80%: ~60 seconds (0.5%/sec), 80-95%: ~50 seconds (0.3%/sec)
+        const increment = prev < 50 ? 0.83 : prev < 80 ? 0.5 : 0.3
         return Math.min(prev + increment, 95)
       })
     }, 1000)
@@ -313,17 +315,17 @@ export default function WhatWeFound() {
     checkForResults()
     checkInterval = setInterval(checkForResults, 3000)
 
-    // Force show results after 6 minutes (failsafe)
+    // Force show results after 3 minutes (failsafe)
     const timeout = setTimeout(() => {
       if (!hasLoadedFacts) {
-        // If no facts loaded after 6 minutes, show timeout state
+        // If no facts loaded after 3 minutes, show timeout state
         setTimedOut(true)
         setLoading(false)
       }
       clearInterval(progressInterval)
       clearInterval(elapsedInterval)
       clearInterval(checkInterval)
-    }, 360000) // 6 minutes
+    }, 180000) // 3 minutes
 
     return () => {
       clearInterval(progressInterval)
@@ -450,24 +452,29 @@ export default function WhatWeFound() {
             </h3>
           </div>
           
-          <div className="space-y-6">
+          <div className="space-y-4">
             {groupedFacts.map((group, groupIndex) => (
-              <div key={group.word}>
+              <motion.div 
+                key={group.word}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: groupIndex * 0.1 }}
+                className="p-4 bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition-colors"
+              >
                 {groupedFacts.length > 1 && (
-                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
+                  <div className="text-xs font-medium text-indigo-500 uppercase tracking-wider mb-3">
                     {group.word} ({group.facts.length})
                   </div>
                 )}
-                <div className="space-y-1.5">
+                <ul className="space-y-2">
                   {group.facts.map((fact, factIndex) => (
-                    <FactCard 
-                      key={`${groupIndex}-${factIndex}`} 
-                      fact={fact} 
-                      index={groupIndex * 10 + factIndex} 
-                    />
+                    <li key={`${groupIndex}-${factIndex}`} className="flex items-start gap-2">
+                      <div className="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                      <span className="text-slate-900 leading-relaxed">{fact}</span>
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              </motion.div>
             ))}
           </div>
         </div>
