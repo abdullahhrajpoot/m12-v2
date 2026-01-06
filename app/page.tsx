@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Check, Calendar, Mail, Sparkles, MousePointer2, Send, Phone, ListChecks } from 'lucide-react'
+import { toast } from 'sonner'
 import ConnectButton from '@/components/ConnectButton'
 
 // --- Subcomponents ---
@@ -213,14 +214,45 @@ export default function Home() {
   const router = useRouter()
 
   // Handle OAuth callback code if redirected here instead of /auth/callback
+  // Also handle error parameters from OAuth failures
   useEffect(() => {
     // Check URL for code parameter (client-side only)
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search)
       const code = urlParams.get('code')
+      const error = urlParams.get('error')
+      const errorDescription = urlParams.get('error_description')
+      
       if (code) {
         // Redirect to the callback route with the code
         router.replace(`/auth/callback?code=${code}`)
+        return
+      }
+      
+      // Handle OAuth errors (e.g., from Nango or Supabase)
+      if (error) {
+        const errorCode = urlParams.get('error_code')
+        console.error('OAuth error detected:', {
+          error,
+          errorCode,
+          errorDescription
+        })
+        
+        // Clean URL by removing error parameters
+        const cleanUrl = new URL(window.location.href)
+        cleanUrl.searchParams.delete('error')
+        cleanUrl.searchParams.delete('error_code')
+        cleanUrl.searchParams.delete('error_description')
+        router.replace(cleanUrl.pathname + cleanUrl.search)
+        
+        // Show user-friendly error message
+        let errorMessage = 'OAuth connection failed. Please try again.'
+        if (errorCode === 'bad_oauth_state') {
+          errorMessage = 'Authentication session expired. Please try signing in again.'
+        } else if (errorDescription) {
+          errorMessage = errorDescription.replace(/\+/g, ' ')
+        }
+        toast.error(errorMessage)
       }
     }
   }, [router])

@@ -55,12 +55,27 @@ curl -X GET "https://bippity.boo/api/auth/tokens?userId=123e4567-e89b-12d3-a456-
 
 ## Updating n8n Workflows
 
-### Step 1: Set Environment Variable
+### Step 1: Set Environment Variables
 
-Add `N8N_API_KEY` to your Railway environment variables. This key should be:
-1. Generated securely (e.g., using `openssl rand -hex 32`)
-2. Added to Railway environment variables as `N8N_API_KEY`
-3. Used in n8n workflows to authenticate API calls
+The `N8N_API_KEY` must be set in **two places** (both must use the same key value):
+
+**1. Railway (Next.js App) - Already Done:**
+   - The key is already set in Railway environment variables
+   - Used by the Next.js app to **validate** incoming requests from n8n
+   - Location: Railway Dashboard → Your Service → Variables → `N8N_API_KEY`
+
+**2. n8n Cloud (n8n Workflows) - Needs to be Set:**
+   - Add the **same key** to n8n Cloud environment variables
+   - Used by n8n workflows to **authenticate** when calling the Next.js API
+   - Location: n8n Cloud → Settings → Environment Variables → Add `N8N_API_KEY`
+
+**Generate the key:**
+```bash
+# Generate a secure random key (if not already generated)
+openssl rand -hex 32
+```
+
+**Important:** Both services must use the **exact same key value**. This is a shared secret for service-to-service authentication.
 
 ### Step 2: Replace Nango Token Retrieval
 

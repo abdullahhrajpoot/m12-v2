@@ -1,188 +1,83 @@
 {
   "name": "Parallelized_Onboarding_Supabase",
-  "id": "vexJG6Y46lso0qKf",
-  "active": true,
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "parallelized-supabase-oauth",
-        "options": {
-          "responseData": "firstEntryJson"
-        }
+        "options": { "responseData": "firstEntryJson" }
       },
       "name": "Supabase OAuth Webhook",
       "id": "webhook-node",
       "typeVersion": 2.1,
-      "position": [
-        -848,
-        208
-      ],
+      "position": [-848, 208],
       "type": "n8n-nodes-base.webhook",
       "webhookId": "0ec3756a-74dc-42ee-8960-2bc8ac6c2a90"
     },
     {
       "parameters": {
         "conditions": {
-          "combinator": "and",
-          "conditions": [
-            {
-              "id": "check-user-id",
-              "leftValue": "={{ $json.body.userId }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "exists"
-              }
-            }
-          ],
-          "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          }
+          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [{ "id": "check-user-id", "leftValue": "={{ $json.body.userId }}", "rightValue": "", "operator": { "type": "string", "operation": "exists" } }],
+          "combinator": "and"
         },
         "options": {}
       },
       "name": "OAuth Successful?",
       "id": "oauth-check",
       "typeVersion": 2.3,
-      "position": [
-        -624,
-        208
-      ],
-      "type": "n8n-nodes-base.if"
+      "position": [-624, 208],
+      "type": "n8n-nodes-base.if",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "operation": "getAll",
         "tableId": "users",
         "matchType": "allFilters",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "id",
-              "condition": "eq",
-              "keyValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
-            }
-          ]
-        }
+        "filters": { "conditions": [{ "keyName": "id", "condition": "eq", "keyValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}" }] }
       },
       "name": "Check if User Exists",
       "id": "check-user",
       "typeVersion": 1,
-      "position": [
-        -416,
-        112
-      ],
+      "position": [-416, 112],
       "type": "n8n-nodes-base.supabase",
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
-        }
-      }
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
     },
     {
       "parameters": {
         "conditions": {
-          "combinator": "and",
-          "conditions": [
-            {
-              "id": "check-item-count",
-              "leftValue": "={{ $json.itemCount }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "equals"
-              }
-            }
-          ],
-          "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          }
+          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [{ "id": "check-item-count", "leftValue": "={{ $json.itemCount }}", "rightValue": 0, "operator": { "type": "number", "operation": "equals" } }],
+          "combinator": "and"
         },
         "options": {}
       },
       "name": "Is New User?",
       "id": "is-new-user",
       "typeVersion": 2.3,
-      "position": [
-        -224,
-        112
-      ],
-      "type": "n8n-nodes-base.if"
+      "position": [-224, 112],
+      "type": "n8n-nodes-base.if",
+      "alwaysOutputData": false
     },
     {
       "parameters": {
         "tableId": "users",
         "fieldsUi": {
           "fieldValues": [
-            {
-              "fieldId": "id",
-              "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
-            },
-            {
-              "fieldId": "email",
-              "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.email }}"
-            }
+            { "fieldId": "id", "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}" },
+            { "fieldId": "email", "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.email }}" }
           ]
         }
       },
       "name": "Create User",
       "id": "create-user",
       "typeVersion": 1,
-      "position": [
-        0,
-        0
-      ],
+      "position": [0, 0],
       "type": "n8n-nodes-base.supabase",
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
-        }
-      },
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "tableId": "connected_services",
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "user_id",
-              "fieldValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
-            },
-            {
-              "fieldId": "service_name",
-              "fieldValue": "Gmail"
-            },
-            {
-              "fieldId": "service_type",
-              "fieldValue": "email"
-            }
-          ]
-        }
-      },
-      "name": "Create Connected Service",
-      "id": "create-connected-service",
-      "typeVersion": 1,
-      "position": [
-        224,
-        0
-      ],
-      "type": "n8n-nodes-base.supabase",
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
-        }
-      },
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
       "continueOnFail": true
     },
     {
@@ -190,42 +85,21 @@
         "operation": "update",
         "tableId": "users",
         "matchType": "allFilters",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "id",
-              "condition": "eq",
-              "keyValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
-            }
-          ]
-        },
+        "filters": { "conditions": [{ "keyName": "id", "condition": "eq", "keyValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}" }] },
         "fieldsUi": {
           "fieldValues": [
-            {
-              "fieldId": "last_login_at",
-              "fieldValue": "={{ $now.toISO() }}"
-            },
-            {
-              "fieldId": "status",
-              "fieldValue": "active"
-            }
+            { "fieldId": "last_login_at", "fieldValue": "={{ $now.toISO() }}" },
+            { "fieldId": "status", "fieldValue": "active" }
           ]
         }
       },
       "name": "Update Existing User",
       "id": "update-user",
       "typeVersion": 1,
-      "position": [
-        0,
-        208
-      ],
+      "position": [0, 208],
       "type": "n8n-nodes-base.supabase",
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
-        }
-      }
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
     },
     {
       "parameters": {
@@ -233,117 +107,47 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            {
-              "name": "userId",
-              "value": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}"
-            },
-            {
-              "name": "provider",
-              "value": "google"
-            }
+            { "name": "userId", "value": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}" },
+            { "name": "provider", "value": "google" }
           ]
         },
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $vars.N8N_API_KEY }}"
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $vars.N8N_API_KEY }}" }] },
         "options": {}
       },
       "name": "Get Token from Supabase",
       "id": "get-token",
       "typeVersion": 4.3,
-      "position": [
-        448,
-        112
-      ],
-      "type": "n8n-nodes-base.httpRequest"
+      "position": [288, 112],
+      "type": "n8n-nodes-base.httpRequest",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "q",
-              "value": "school OR academy daycare OR preschool OR nursery OR montessori OR prek OR kindergarten OR elementary OR conservatory OR tutoring OR enrichment OR soccer OR basketball OR baseball OR softball OR volleyball OR football OR swimming OR tennis OR cheerleading OR dance OR wrestling OR gymnastics OR golf OR club OR studio OR dojo OR league OR gym OR camp OR lessons OR class OR martial OR scouts"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.access_token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "name": "Search Gmail For Usual Suspects",
-      "id": "search-gmail",
-      "typeVersion": 4.3,
-      "position": [
-        672,
-        112
-      ],
-      "type": "n8n-nodes-base.httpRequest"
-    },
-    {
-      "parameters": {
-        "fieldToSplitOut": "=messages",
-        "options": {}
-      },
-      "name": "Split Out",
-      "id": "split-out",
-      "typeVersion": 1,
-      "position": [
-        880,
-        112
-      ],
-      "type": "n8n-nodes-base.splitOut"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Add access_token to each item from the token node\nconst token = $node['Get Token from Supabase'].json.access_token;\nconst items = $input.all();\n\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    access_token: token\n  }\n}));"
+        "jsCode": "// Add access_token to each item from the token node\n// Use robust $() syntax for reliable node reference\nlet token = null;\ntry {\n  token = $('Get Token from Supabase').first().json.access_token;\n} catch (e) {\n  // Fallback\n  token = $node['Get Token from Supabase']?.json?.access_token || null;\n}\n\nconst items = $input.all();\n\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    access_token: token\n  }\n}));"
       },
       "name": "Add Token To Items",
       "id": "add-token",
       "typeVersion": 2,
-      "position": [
-        1088,
-        112
-      ],
-      "type": "n8n-nodes-base.code"
+      "position": [1088, 112],
+      "type": "n8n-nodes-base.code",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{ $json.id }}",
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + $json.id }}",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [{ "name": "format", "value": "full" }] },
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.access_token }}"
-            }
-          ]
-        },
-        "options": {}
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $json.access_token }}" }] },
+        "options": { "batching": { "batch": { "batchSize": 10, "batchInterval": 6000 } } }
       },
       "name": "Pull Discovered Emails",
       "id": "pull-emails",
       "typeVersion": 4.3,
-      "position": [
-        1472,
-        112
-      ],
-      "type": "n8n-nodes-base.httpRequest"
+      "position": [1472, 112],
+      "type": "n8n-nodes-base.httpRequest",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -352,230 +156,406 @@
       "name": "Convert To Readable Email",
       "id": "convert-readable",
       "typeVersion": 2,
-      "position": [
-        1664,
-        112
-      ],
-      "type": "n8n-nodes-base.code"
+      "position": [1664, 112],
+      "type": "n8n-nodes-base.code",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "promptType": "define",
-        "text": "=System Prompt:\nYou are an entity extraction agent. Your job is to read emails and extract factual information about people, places, and ongoing schedules into simple, declarative sentences.\nWhat to extract:\n\nPeople and their attributes (names, grades, ages, roles)\nRelationships between people and organizations (schools, activities, teams)\nOngoing/recurring schedules (regular practice times, class schedules, recurring events)\n\nWhat NOT to extract:\n\nOne-time events (a specific field trip, a single performance date, a deadline)\nTemporary announcements\nRequests or action items\nPolicies, rules, or procedures\nAbstract concepts (these are not entities)\n\nValid entity types:\n\nPeople: children, teachers, coaches, parents, administrators (must be a specific individual)\nOrganizations: schools, studios, clubs, leagues\nActivities: sports, classes, programs with recurring schedules\n\nNOT valid entities:\n\nPolicies, guidelines, rules\nGeneral announcements\nConcepts or categories\n\n\nRole clarity requirement:\nWhen extracting information about a person, you must clearly identify their role. Do not associate a name with a group unless the relationship is explicit.\n\n✓ Ms. Chen is a teacher at Riverside Elementary.\n✓ Ms. Chen teaches Grade 1 at Riverside Elementary.\n✗ Ms. Chen is in Grade 1. (ambiguous—is she a student or teacher?)\n\nIf a name appears but the role is unclear, note it:\n\nMs. Chen is associated with Grade 1 at Riverside Elementary. (role unclear—possibly teacher)\n\n\nConfidence assessment (internal use only):\nAssess each fact internally but do not include confidence labels in output:\n\nhigh: Explicitly stated, unambiguous (e.g., \"Your child Emma is enrolled in Grade 2\")\nmedium: Strongly implied or inferred from context (e.g., email from \"ABC Elementary\" about \"your student\" implies the child attends ABC Elementary)\nlow: Requires assumption or is partially incomplete\n\n\nConsolidation rules:\nWhen processing multiple emails:\n\nMerge duplicates: If the same fact appears multiple times, keep it once and upgrade confidence if confirmed by multiple sources.\nResolve conflicts: If emails contradict each other:\n\nPrefer more recent information (if dates are available)\nPrefer explicit statements over inferences\nIf unresolvable, note the conflict in parentheses: (or possibly [other value])\n\n\nFill in gaps: If one email says \"Someone does ballet\" and another reveals \"Emma has class Tuesday,\" connect them if context supports it.\nEntity matching: Treat these as the same person if context strongly suggests it:\n\n\"Emma\" and \"Emma S.\" from the same school\n\"Your daughter\" from a school where only one child is enrolled\nWhen uncertain, keep separate with a note: (possibly same as [other entity])\n\n\n\n\nOutput format:\nGroup all facts by entity. Within each entity, list facts from most confident to least confident. Use simple sentences. Note incomplete information or ambiguity in parentheses.\n[Entity Name] ([role/type])\n- [most confident fact]\n- [next most confident fact]\n- ...\nFor unknown entities, use a descriptive placeholder:\nUnknown child (from Dance Academy emails)\n- ...\n\nExample output:\nEmma (child)\n- Emma goes to Riverside Elementary.\n- Emma is in Grade 1.\n- Emma does ballet on Tuesdays. (inferred from Dance Academy email)\n\nMs. Chen (teacher)\n- Ms. Chen teaches Grade 1 at Riverside Elementary.\n\nJake (child)\n- Jake does soccer.\n- Jake might also do baseball. (unconfirmed)\n\nSoccer - Riverside Youth League (activity)\n- Practice is on Wednesdays at 4pm.\n- Games are on Saturday mornings.\n\nUnknown child (from Lincoln Elementary emails)\n- Attends Lincoln Elementary.\n- Is in Grade 2.\n\nInput:\n{{ $json.text }}\nOutput:\nExtract and consolidate all entity facts, grouped by entity:",
-        "options": {}
-      },
-      "name": "Combined AI Agent",
-      "id": "combined-agent",
-      "typeVersion": 3,
-      "position": [
-        1856,
-        112
-      ],
-      "type": "@n8n/n8n-nodes-langchain.agent"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4o"
-        },
+        "model": { "__rl": true, "mode": "list", "value": "gpt-4o" },
         "builtInTools": {},
-        "options": {
-          "maxTokens": 2000,
-          "temperature": 0.3
-        }
+        "options": { "maxTokens": 2000, "temperature": 0.3 }
       },
       "name": "OpenAI Chat Model GPT-4o",
       "id": "gpt4o-model",
       "typeVersion": 1.3,
-      "position": [
-        1728,
-        320
-      ],
+      "position": [1424, 832],
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "credentials": {
-        "openAiApi": {
-          "id": "D1MyVMAJ9zLNahg3",
-          "name": "OpenAi account"
-        }
-      }
+      "credentials": { "openAiApi": { "id": "D1MyVMAJ9zLNahg3", "name": "OpenAi account" } }
     },
     {
       "parameters": {
-        "jsCode": "// Parse entity-based AI output into sentence array\n// Get userId from webhook node (Code nodes break paired item chain)\nlet userId = null;\ntry {\n  userId = $node['Supabase OAuth Webhook'].json.body.userId;\n} catch (e) {\n  const items = $input.all();\n  if (items.length > 0 && items[0].json && items[0].json.userId) {\n    userId = items[0].json.userId;\n  }\n}\n\nconst items = $input.all();\nconst allFacts = [];\n\nfor (const item of items) {\n  let outputText = '';\n  \n  // Extract output from AI agent\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else {\n    continue;\n  }\n  \n  // Parse entity-based output format:\n  // [Entity Name]\n  // - fact 1\n  // - fact 2\n  \n  // Split by lines and extract facts (lines starting with '-')\n  const lines = outputText.split('\\n');\n  let currentEntity = null;\n  \n  for (const line of lines) {\n    const trimmed = line.trim();\n    \n    // Check if this is an entity header (not starting with -, usually in [])\n    if (trimmed && !trimmed.startsWith('-') && !trimmed.startsWith('•')) {\n      // This might be an entity name\n      currentEntity = trimmed.replace(/[\\[\\]]/g, '').trim();\n    }\n    // Check if this is a fact (starts with - or •)\n    else if (trimmed.startsWith('-') || trimmed.startsWith('•')) {\n      // Extract the fact text (remove the bullet/dash)\n      let fact = trimmed.replace(/^[-•]\\s*/, '').trim();\n      \n      // Skip empty facts\n      if (fact && fact.length > 5) {\n        // Ensure fact ends with punctuation\n        if (!fact.match(/[.!?]$/)) {\n          fact += '.';\n        }\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity && !fact.toLowerCase().includes(currentEntity.toLowerCase().split(' ')[0])) {\n          fact = `${currentEntity}: ${fact}`;\n        }\n        \n        allFacts.push(fact);\n      }\n    }\n  }\n}\n\n// Deduplicate facts (case-insensitive)\nconst uniqueFacts = [];\nconst seenFacts = new Set();\n\nfor (const fact of allFacts) {\n  const normalized = fact.toLowerCase().trim();\n  if (!seenFacts.has(normalized)) {\n    seenFacts.add(normalized);\n    uniqueFacts.push(fact);\n  }\n}\n\n// Return sentences with userId preserved\nreturn [{\n  json: {\n    sentences: uniqueFacts,\n    userId: userId,\n    total_facts: uniqueFacts.length,\n    raw_output: items.map(i => i.json?.output || '').join('\\n\\n---\\n\\n').substring(0, 1000)\n  }\n}];"
+        "jsCode": "// Parse entity-based AI output into sentence array\n// Use robust $() syntax for reliable node reference\nlet userId = null;\ntry {\n  userId = $('Supabase OAuth Webhook').first().json.body.userId;\n} catch (e) {\n  // Fallback to input data\n  const items = $input.all();\n  if (items.length > 0 && items[0].json && items[0].json.userId) {\n    userId = items[0].json.userId;\n  }\n}\n\nconst items = $input.all();\nconst allFacts = [];\n\n// Regex to detect entity headers: \"Name (type)\" format\nconst entityHeaderRegex = /^(.+?)\\s*\\((child|teacher|activity|parent|coach|other|school|organization)\\)$/i;\n\nfor (const item of items) {\n  let outputText = '';\n  \n  // Extract output from AI agent\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else {\n    continue;\n  }\n  \n  // Split by lines and parse both formats:\n  // Format 1 (bullet): \"[Entity Name]\\n- fact 1\\n- fact 2\"\n  // Format 2 (plain): \"Entity Name (type)\\nfact 1.\\nfact 2.\"\n  const lines = outputText.split('\\n');\n  let currentEntity = null;\n  let inEntitySection = false;\n  \n  for (const line of lines) {\n    const trimmed = line.trim();\n    \n    // Skip empty lines (but DON'T reset entity section - empty lines are just separators)\n    if (!trimmed) {\n      continue;\n    }\n    \n    // Check if this is an entity header (Format 2: \"Name (type)\")\n    const entityMatch = trimmed.match(entityHeaderRegex);\n    if (entityMatch) {\n      currentEntity = entityMatch[1].trim(); // Entity name without the (type) part\n      inEntitySection = true;\n      continue;\n    }\n    \n    // Check if this is an entity header (Format 1: \"[Entity Name]\")\n    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {\n      currentEntity = trimmed.replace(/[\\[\\]]/g, '').trim();\n      inEntitySection = true;\n      continue;\n    }\n    \n    // Check if this is a bullet format fact (Format 1: \"- fact\" or \"• fact\")\n    if (trimmed.startsWith('-') || trimmed.startsWith('•')) {\n      let fact = trimmed.replace(/^[-•]\\s*/, '').trim();\n      \n      if (fact && fact.length > 5) {\n        // Ensure fact ends with punctuation\n        if (!fact.match(/[.!?]$/)) {\n          fact += '.';\n        }\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        \n        allFacts.push(fact);\n      }\n      continue;\n    }\n    \n    // Check if this is a plain sentence format fact (Format 2: ends with punctuation)\n    // Only extract if we're in an entity section (after an entity header)\n    if (inEntitySection && trimmed.match(/[.!?]$/)) {\n      // Must be a complete sentence: ends with punctuation and has minimum length\n      if (trimmed.length >= 10) {\n        let fact = trimmed;\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          // Avoid duplication: if entity name is already in the sentence, don't prefix it\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        \n        allFacts.push(fact);\n      }\n    }\n  }\n}\n\n// Deduplicate facts (case-insensitive)\nconst uniqueFacts = [];\nconst seenFacts = new Set();\n\nfor (const fact of allFacts) {\n  const normalized = fact.toLowerCase().trim();\n  if (!seenFacts.has(normalized)) {\n    seenFacts.add(normalized);\n    uniqueFacts.push(fact);\n  }\n}\n\n// Return sentences with userId preserved\nreturn [{\n  json: {\n    sentences: uniqueFacts,\n    userId: userId,\n    total_facts: uniqueFacts.length,\n    raw_output: items.map(i => i.json?.output || i.json?.text || '').join('\\n\\n---\\n\\n').substring(0, 1000)\n  }\n}];"
       },
       "name": "Parse Sentences Array",
       "id": "parse-sentences",
       "typeVersion": 2,
-      "position": [
-        2048,
-        112
-      ],
-      "type": "n8n-nodes-base.code"
+      "position": [2416, -48],
+      "type": "n8n-nodes-base.code",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "operation": "update",
         "tableId": "onboarding_summaries",
         "matchType": "allFilters",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "user_id",
-              "condition": "eq",
-              "keyValue": "={{ $json.userId }}"
-            }
-          ]
-        },
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "summary_sentences",
-              "fieldValue": "={{ $json.sentences }}"
-            }
-          ]
-        }
+        "filters": { "conditions": [{ "keyName": "user_id", "condition": "eq", "keyValue": "={{ $json.userId }}" }] },
+        "fieldsUi": { "fieldValues": [{ "fieldId": "summary_sentences", "fieldValue": "={{ $json.sentences }}" }] }
       },
       "name": "Save Onboarding Summaries",
       "id": "save-summaries",
       "typeVersion": 1,
-      "position": [
-        2240,
-        112
-      ],
+      "position": [2624, -176],
       "type": "n8n-nodes-base.supabase",
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
-        }
-      }
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
+      "continueOnFail": true
     },
     {
       "parameters": {
         "conditions": {
-          "combinator": "and",
-          "conditions": [
-            {
-              "id": "check-item-count",
-              "leftValue": "={{ $json.itemCount }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
-          "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          }
+          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [{ "id": "check-item-count", "leftValue": "={{ $json.itemCount }}", "rightValue": 0, "operator": { "type": "number", "operation": "equals" } }],
+          "combinator": "and"
         },
         "options": {}
       },
       "name": "Check Update Result",
       "id": "check-update",
       "typeVersion": 2.3,
-      "position": [
-        2432,
-        32
-      ],
-      "type": "n8n-nodes-base.if"
+      "position": [3008, 16],
+      "type": "n8n-nodes-base.if",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
+        "operation": "create",
         "tableId": "onboarding_summaries",
         "fieldsUi": {
           "fieldValues": [
-            {
-              "fieldId": "user_id",
-              "fieldValue": "={{ $node['Parse Sentences Array'].json.userId }}"
-            },
-            {
-              "fieldId": "summary_sentences",
-              "fieldValue": "={{ $node['Parse Sentences Array'].json.sentences }}"
-            }
+            { "fieldId": "user_id", "fieldValue": "={{ $json.userId }}" },
+            { "fieldId": "summary_sentences", "fieldValue": "={{ $json.sentences }}" }
           ]
         }
       },
       "name": "Insert Onboarding Summaries",
       "id": "insert-summaries",
       "typeVersion": 1,
-      "position": [
-        2624,
-        112
-      ],
+      "position": [3184, 400],
       "type": "n8n-nodes-base.supabase",
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter out blank or nearly-empty emails\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Skip null/undefined items\n  if (!item || !item.json) {\n    continue;\n  }\n  \n  const email = item.json.text;\n  \n  // Skip if no email content\n  if (!email || typeof email !== 'string') {\n    continue;\n  }\n  \n  // Skip if email is too short (less than 50 chars after trimming)\n  const trimmed = email.trim();\n  if (trimmed.length < 50) {\n    continue;\n  }\n  \n  // Add valid item to results (only include id if it exists)\n  const resultItem = {\n    json: {\n      text: item.json.text\n    }\n  };\n  \n  // Include id only if it exists and is valid\n  if (item.json.id !== undefined && item.json.id !== null) {\n    resultItem.json.id = item.json.id;\n  }\n  \n  results.push(resultItem);\n}\n\n// If all emails filtered out, return minimal item to keep workflow going\n// This uses ~20-30 tokens (base prompt only) vs stopping workflow\n// AI will return {\"entities\": []} with minimal tokens, allowing workflow to continue\nif (results.length === 0) {\n  return [{\n    json: {\n      text: ''  // Empty string - triggers minimal AI prompt (~30-40 tokens total)\n    }\n  }];\n}\n\nreturn results;"
+      },
+      "id": "filter-blank-emails",
+      "name": "Filter Out Blank Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1856, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract entity facts from the following emails:\n{{ $json.text}} }}",
+        "options": {
+          "systemMessage": "You are an entity extraction agent. Your job is to read emails and extract factual information about people and their ongoing activities into simple, declarative sentences.\n\nWhat to extract:\n- People and their attributes (names, grades, ages, roles)\n- Relationships between people and organizations (who attends which school, who is in which ongoing activity)\n- Ongoing/recurring schedules (weekly practice times, regular class schedules)\n\nWhat NOT to extract:\n1. One-time events, even if they seem important (performances, workshops, meetings, holidays, deadlines, field trips, projects, goals, initiatives)\n2. Policies, rules, procedures, or guidelines\n3.  Contact information (emails, phone numbers)\n4.  Organizations as standalone entities (only mention organizations in relation to a child)\n5.  Vague associations—if you can't make a clear, specific statement, don't extract it\n6.  Statements about organizations and their granular activities such as workshops, classes, initiatives\n\nThe \"will this be true next month?\" test:\nBefore extracting a fact, ask: \"Will this still be true in a month?\"\n- YES, extract: \"Emma is in Grade 1\"\n- YES, extract: \"Soccer practice is Wednesdays at 4pm\"\n- NO, skip: \"Winter Sing is December 16th\"\n- NO, skip: \"Town Hall is January 8th\"\n- NO, skip: \"Team A is working on HERO certifications\"\n\nValid entity types:\n- People: children, teachers, coaches (specific individuals with meaningful facts)\n- Activities: sports, classes, programs—ONLY if you have recurring schedule information\n\nNOT valid entities:\n- Schools/organizations as standalone entities\n- Rooms, grades, or classes as standalone entities\n\nQuality rules:\n\n1. No vague statements: Never use \"associated with.\" Every fact must be specific.\n   BAD: Ellora is associated with Footsteps.\n   GOOD: Ellora attends Footsteps.\n   If unclear: don't extract.\n\n2. Role clarity: Clearly identify roles.\n   GOOD: Ms. Chen teaches Grade 1 at Riverside Elementary.\n   BAD: Ms. Chen is associated with Grade 1. (skip this)\n\n3. Minimum value: Only extract facts useful for understanding who someone is or their regular schedule.\n\n4. Only output statements that you are more than 80% confident in.\n\nOutput format (strict JSON):\n\n{\n  \"entities\": [\n    {\n      \"name\": \"Emma\",\n      \"type\": \"child\",\n      \"facts\": [\n        \"Emma attends Riverside Elementary.\",\n        \"Emma is in Grade 1.\",\n        \"Emma does ballet.\"\n      ]\n    },\n    {\n      \"name\": \"Ms. Chen\",\n      \"type\": \"teacher\",\n      \"facts\": [\n        \"Ms. Chen teaches Grade 1 at Riverside Elementary.\"\n      ]\n    },\n    {\n      \"name\": \"Ballet - Dance Academy\",\n      \"type\": \"activity\",\n      \"facts\": [\n        \"Class is on Tuesdays at 3:30pm.\"\n      ]\n    }\n  ]\n}\n\nIf no valid facts can be extracted, output:\n{\n  \"entities\": []\n}\n\nOutput JSON only. No other text."
         }
       },
-      "continueOnFail": true
+      "name": "Extraction System",
+      "id": "combined-agent",
+      "typeVersion": 3,
+      "position": [2016, 272],
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Consolidate the following extraction outputs:\n\n{{ $json.all_extractions }}",
+        "options": {
+          "systemMessage": "You are a consolidation agent. You receive multiple JSON outputs from parallel entity extraction runs. Your job is to merge them into a single, deduplicated result.\n\nConsolidation rules:\n\n1. Match entities: Treat as the same entity if:\n\n- Names match exactly\n- Names are variants (e.g., \"Emma\" and \"Emma S.\", \"Ms. Chen\" and \"Sara Chen\")\n- Context confirms they're the same person (same school + same grade + same role)\n\n2. Merge facts: Combine all facts for matched entities.\n\n3. Consolidate overlapping facts:\n- If one fact contains all information from another plus more detail, keep only the detailed one. Example: \"Emma does ballet\" + \"Emma does ballet at Studio X\" = keep only \"Emma does ballet at Studio X\"\n- Treat these verbs as equivalent for activities/classes: \"attends\", \"is enrolled in\", \"is in\", \"takes\", \"does\", \"participates in\"\n- \"is interested in\" is NOT equivalent to enrollment. Only keep if no enrollment fact exists for that activity.\n\n\n4. One fact per relationship: Each unique relationship (child to activity, child to school, teacher to school, etc.) should produce exactly ONE fact with maximum specificity.\n\n- Wrong: \"Bill attends SoccerX\" + \"Bill is in Advanced Skills\" + \"Bill attends Advanced Skills at SoccerX\"\n- Right: \"Bill attends Advanced Skills at SoccerX.\"\n\n\n5. Resolve conflicts: If facts genuinely contradict:\n\n- If one is more specific, keep that one\n- If genuinely conflicting, keep both with note: \"(or possibly [other value])\"\n\n\n6. Order facts: Within each entity, order from most confident/specific to least.\n7. Discard low-value entities: If an entity has only vague or unconfirmed facts after merging, remove it entirely. If an organization, class, team, group, or activity is not explicitly associated with a child, remove it.\n8. Group output by child. Do not output groups that are not anchored by a child.\n9. Simple atomic facts: Each fact should be a simple sentence expressing a single piece of information.\n\nOutput format (CRITICAL - use exactly this format):\nName (type)\n\nfact\nfact\n\nName (type)\n\nfact\n\nRequirements: One blank line after entity header. One fact per line. No bullets, dashes, or prefixes. Each fact must be a complete sentence ending with a period.\n\nExample input:\n[\n{\n\"entities\": [\n{\"name\": \"Emma\", \"type\": \"child\", \"facts\": [\"Emma attends Riverside Elementary.\", \"Emma goes to Riverside.\"]}\n]\n},\n{\n\"entities\": [\n{\"name\": \"Emma\", \"type\": \"child\", \"facts\": [\"Emma is in Grade 1.\", \"Emma does ballet.\", \"Emma takes ballet at Dance Studio.\"]}\n]\n},\n{\n\"entities\": [\n{\"name\": \"Ms. Chen\", \"type\": \"teacher\", \"facts\": [\"Ms. Chen teaches Grade 1 at Riverside Elementary.\"]}\n]\n}\n]\nExample output:\nEmma (child)\n\nEmma attends Riverside Elementary.\nEmma is in Grade 1.\nEmma takes ballet at Dance Studio.\n\nMs. Chen (teacher)\n\nMs. Chen teaches Grade 1 at Riverside Elementary.\n\nOutput the consolidated entity list only. No other text."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [2272, 480],
+      "id": "ece05765-03e6-49fd-8359-2a9666077cd1",
+      "name": "Consolidator System",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "model": { "__rl": true, "value": "chatgpt-4o-latest", "mode": "list", "cachedResultName": "chatgpt-4o-latest" },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [2112, 720],
+      "id": "d4a9327f-31c5-4a4d-a9b0-29a31a74ec9f",
+      "name": "OpenAI Chat Model",
+      "credentials": { "openAiApi": { "id": "D1MyVMAJ9zLNahg3", "name": "OpenAi account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all extraction outputs into a single item for consolidation\nconst items = $input.all();\nconst results = [];\n\n// Handle empty input case\nif (!items || items.length === 0) {\n  results.push({\n    json: {\n      all_extractions: 'No extractions found',\n      total_emails: 0,\n      timestamp: new Date().toISOString()\n    }\n  });\n  return results;\n}\n\n// Limit to prevent token overflow (reasonable limit: 100 items)\nconst MAX_ITEMS = 100;\nconst itemsToProcess = items.length > MAX_ITEMS ? items.slice(0, MAX_ITEMS) : items;\n\n// Combine all extraction outputs with clear separation\nconst extractionParts = [];\nlet processedCount = 0;\n\nfor (let i = 0; i < itemsToProcess.length; i++) {\n  const item = itemsToProcess[i];\n  \n  // Skip null/undefined items\n  if (!item || !item.json) {\n    continue;\n  }\n  \n  try {\n    // Extract output from AI agent\n    let output = null;\n    if (item.json.output) {\n      output = item.json.output;\n    } else if (item.json.text) {\n      output = item.json.text;\n    }\n    \n    // Skip items with no meaningful output\n    if (!output || (typeof output === 'string' && output.trim().length === 0)) {\n      continue;\n    }\n    \n    // Convert to string if needed, with safe JSON fallback\n    let outputStr = '';\n    if (typeof output === 'string') {\n      outputStr = output;\n    } else {\n      try {\n        outputStr = JSON.stringify(output);\n      } catch (e) {\n        // Handle circular references or other JSON errors\n        outputStr = String(output);\n      }\n    }\n    \n    // Limit individual extraction size to prevent overflow (10KB per extraction)\n    const MAX_EXTRACTION_SIZE = 10000;\n    if (outputStr.length > MAX_EXTRACTION_SIZE) {\n      outputStr = outputStr.substring(0, MAX_EXTRACTION_SIZE) + '... [truncated]';\n    }\n    \n    extractionParts.push(`=== Email ${i + 1} Extraction ===\\n${outputStr}`);\n    processedCount++;\n  } catch (e) {\n    // Skip items that cause errors, but log the issue\n    extractionParts.push(`=== Email ${i + 1} Extraction ===\\n[Error processing extraction: ${String(e)}]`);\n    processedCount++;\n  }\n}\n\n// Join with separator\nconst allExtractions = extractionParts.length > 0 \n  ? extractionParts.join('\\n\\n')\n  : 'No valid extractions found';\n\n// Limit total output size (200KB max for consolidation prompt)\nconst MAX_TOTAL_SIZE = 200000;\nconst finalExtractions = allExtractions.length > MAX_TOTAL_SIZE\n  ? allExtractions.substring(0, MAX_TOTAL_SIZE) + '\\n\\n... [truncated due to size limit]'\n  : allExtractions;\n\nresults.push({\n  json: {\n    all_extractions: finalExtractions,\n    total_emails: items.length,\n    processed_emails: processedCount,\n    timestamp: new Date().toISOString()\n  }\n});\n\nreturn results;"
+      },
+      "id": "aggregate-extractions",
+      "name": "Aggregate Extractions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2064, 512],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preserve original input data (userId, sentences) through UPDATE operation\n// Since Supabase UPDATE returns empty json: {} even when successful, we can't reliably\n// determine if UPDATE found records. Always assume itemCount = 0 so INSERT runs.\n// If a record already exists, INSERT will fail (handled by continueOnFail), but\n// UPDATE should have already updated it. This ensures records are always saved.\n\nconst items = $input.all();\nconst result = [];\n\n// Get original data from Parse Sentences Array node using robust $() syntax\nlet originalData = null;\ntry {\n  const parseNodeData = $('Parse Sentences Array').first().json;\n  if (parseNodeData) {\n    originalData = {\n      userId: parseNodeData.userId,\n      sentences: parseNodeData.sentences\n    };\n  }\n} catch (e) {\n  // If $() fails, try to extract from input (shouldn't happen, but fallback)\n  if (items.length > 0 && items[0].json) {\n    const item = items[0].json;\n    originalData = {\n      userId: item.user_id || item.userId,\n      sentences: item.summary_sentences || item.sentences\n    };\n  }\n}\n\n// Always assume UPDATE found 0 records (itemCount = 0) so INSERT always runs\n// This is necessary because UPDATE returns empty items even when successful\n// If record exists, INSERT will fail gracefully, but UPDATE should have already updated it\nconst itemCount = 0;\n\n// If we have originalData, output it with itemCount = 0 to trigger INSERT\nif (originalData) {\n  result.push({\n    json: {\n      itemCount: itemCount,\n      userId: originalData.userId,\n      sentences: originalData.sentences\n    }\n  });\n} else {\n  // Fallback: output empty data if we couldn't get original data\n  result.push({\n    json: {\n      itemCount: 0,\n      userId: null,\n      sentences: null\n    }\n  });\n}\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2832, -176],
+      "id": "40c72092-7cad-4002-a3fa-2451eee8e427",
+      "name": "Preserve Data for Insert",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate results from 5 period-based Gmail searches\n// Tag messages with source period for analytics\n// Input order: Recent(0), BackToSchool(1), Fall(2), Winter(3), Spring(4)\nconst items = $input.all();\nconst periodNames = ['recent', 'backtoschool', 'fall', 'winter', 'spring'];\n\n// Collect messages and tag with period source\nconst seenIds = new Set();\nconst uniqueMessages = [];\n\nlet itemIndex = 0;\nfor (const item of items) {\n  if (item.json && item.json.messages && Array.isArray(item.json.messages)) {\n    const period = periodNames[itemIndex] || 'unknown';\n    \n    for (const msg of item.json.messages) {\n      // Skip duplicates (same email might match multiple period searches)\n      if (msg.id && !seenIds.has(msg.id)) {\n        seenIds.add(msg.id);\n        uniqueMessages.push({\n          ...msg,\n          _source: period\n        });\n      }\n    }\n    itemIndex++;\n  }\n}\n\n// Return aggregated result with period tags\nreturn [{\n  json: {\n    messages: uniqueMessages,\n    resultSizeEstimate: uniqueMessages.length,\n    periodCounts: {\n      recent: uniqueMessages.filter(m => m._source === 'recent').length,\n      backtoschool: uniqueMessages.filter(m => m._source === 'backtoschool').length,\n      fall: uniqueMessages.filter(m => m._source === 'fall').length,\n      winter: uniqueMessages.filter(m => m._source === 'winter').length,\n      spring: uniqueMessages.filter(m => m._source === 'spring').length\n    }\n  }\n}];"
+      },
+      "id": "aggregate-gmail-results",
+      "name": "Aggregate Gmail Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [832, 208],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simplified selection: period bucketing done upstream at search level\n// This node just applies sender limits and outputs top-scored emails\n\nconst items = $input.all();\nif (!items || items.length === 0 || !items[0].json || !items[0].json.messages) {\n  return [];\n}\n\nconst allMessages = items[0].json.messages;\nconst TARGET_COUNT = 60;\nconst INITIAL_SENDER_LIMIT = 4;\nconst MAX_SENDER_LIMIT = 20;\n\nfunction shuffleArray(array) {\n  const shuffled = [...array];\n  for (let i = shuffled.length - 1; i > 0; i--) {\n    const j = Math.floor(Math.random() * (i + 1));\n    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];\n  }\n  return shuffled;\n}\n\n// If we have fewer messages than target, return all\nif (allMessages.length <= TARGET_COUNT) {\n  return allMessages.map(msg => ({\n    json: {\n      id: msg.id,\n      threadId: msg.threadId,\n      _source: msg._source\n    }\n  }));\n}\n\n// Sort by score (descending)\nconst sortedMessages = [...allMessages].sort((a, b) => (b.score || 0) - (a.score || 0));\n\n// Apply sender limit with incremental relaxation\nlet selectedMessages = [];\nlet senderLimit = INITIAL_SENDER_LIMIT;\n\nwhile (selectedMessages.length < TARGET_COUNT && senderLimit <= MAX_SENDER_LIMIT) {\n  const senderCounts = new Map();\n  selectedMessages = [];\n  \n  for (const msg of sortedMessages) {\n    const sender = (msg.from || '').toLowerCase();\n    const currentCount = senderCounts.get(sender) || 0;\n    \n    if (currentCount < senderLimit) {\n      selectedMessages.push(msg);\n      senderCounts.set(sender, currentCount + 1);\n      \n      if (selectedMessages.length >= TARGET_COUNT) break;\n    }\n  }\n  \n  if (selectedMessages.length < TARGET_COUNT) {\n    senderLimit++;\n  }\n}\n\n// Shuffle to mix periods\nconst finalShuffled = shuffleArray(selectedMessages);\n\nreturn finalShuffled.map(msg => ({\n  json: {\n    id: msg.id,\n    threadId: msg.threadId,\n    _source: msg._source\n  }\n}));"
+      },
+      "id": "select-45-by-ratio",
+      "name": "Select 60 Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [944, 32],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize itemCount from Check if User Exists\n// Supabase getAll returns 1 item with empty json {} even when no records found\n// We need to check if the item actually contains user data (has an 'id' field)\nconst items = $input.all();\n\n// Count items that have actual user data (id field exists and is not empty)\nlet itemCount = 0;\nfor (const item of items) {\n  if (item.json && item.json.id) {\n    itemCount++;\n  }\n}\n\n// Output itemCount for the IF node to use\n// itemCount will be 0 if no user exists (empty json {})\n// itemCount will be 1+ if user(s) exist\nreturn [{\n  json: {\n    itemCount: itemCount\n  }\n}];"
+      },
+      "id": "check-user-count",
+      "name": "Check User Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 112],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split messages array into individual items for HTTP Request batching\nconst items = $input.all();\nif (!items || items.length === 0 || !items[0].json || !items[0].json.messages) {\n  return [{ json: { id: null } }];\n}\n\nconst messages = items[0].json.messages;\n\n// Get token using $() syntax which is more reliable after Merge nodes\nlet token = null;\ntry {\n  token = $('Get Token from Supabase').first().json.access_token;\n} catch (e) {\n  // Fallback to $node syntax\n  try {\n    token = $node['Get Token from Supabase'].json.access_token;\n  } catch (e2) {\n    // If still failing, return error\n    return [{ json: { error: 'Could not get access token', id: null } }];\n  }\n}\n\n// Output one item per message for HTTP Request node to process\n// Store _source in _originalSource so it survives HTTP Request\nreturn messages.map(msg => ({\n  json: {\n    id: msg.id,\n    threadId: msg.threadId,\n    _source: msg._source,\n    _originalSource: msg._source, // Backup field\n    _originalThreadId: msg.threadId, // Backup field\n    access_token: token\n  }\n}));"
+      },
+      "id": "split-metadata-requests",
+      "name": "Split Messages for Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [888, 112],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + $json.id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "format", "value": "metadata" },
+            { "name": "metadataHeaders", "value": "Date" },
+            { "name": "metadataHeaders", "value": "From" },
+            { "name": "metadataHeaders", "value": "Subject" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $json.access_token || $('Get Token from Supabase').first().json.access_token }}" }]
+        },
+        "options": { "batching": { "batch": { "batchSize": 15, "batchInterval": 1500 } } }
+      },
+      "id": "fetch-metadata",
+      "name": "Fetch Message Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [1056, 112],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate metadata results back into messages array\nconst items = $input.all();\nconst enrichedMessages = [];\n\nfor (const item of items) {\n  if (!item.json || !item.json.id) continue;\n  \n  const msgId = item.json.id;\n  // threadId might be overwritten by Gmail response, use backup if available\n  const threadId = item.json.threadId || item.json._originalThreadId;\n  // _source might be lost by HTTP Request, use backup _originalSource\n  const source = item.json._source || item.json._originalSource;\n  \n  // Extract headers from Gmail API response\n  let headers = [];\n  if (item.json.payload && Array.isArray(item.json.payload.headers)) {\n    headers = item.json.payload.headers;\n  }\n  \n  let from = '', subject = '';\n  \n  for (const h of headers) {\n    if (h && typeof h === 'object' && h.name && h.value) {\n      const headerName = String(h.name).toLowerCase().trim();\n      if (headerName === 'from') {\n        from = String(h.value).trim();\n      } else if (headerName === 'subject') {\n        subject = String(h.value).trim();\n      }\n    }\n  }\n  \n  // Extract email address from From header\n  let fromEmail = from;\n  if (from) {\n    const angleBracketMatch = from.match(/<([^>]+)>/);\n    if (angleBracketMatch && angleBracketMatch[1]) {\n      fromEmail = angleBracketMatch[1].trim();\n    } else {\n      const emailMatch = from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})/);\n      if (emailMatch && emailMatch[1]) {\n        fromEmail = emailMatch[1].trim();\n      }\n    }\n  }\n  \n  enrichedMessages.push({\n    id: msgId,\n    threadId: threadId,\n    _source: source,\n    internalDate: item.json.internalDate,\n    from: fromEmail,\n    subject: subject,\n    labels: item.json.labelIds || [],\n    sizeEstimate: item.json.sizeEstimate\n  });\n}\n\nreturn [{\n  json: {\n    messages: enrichedMessages,\n    resultSizeEstimate: enrichedMessages.length\n  }\n}];"
+      },
+      "id": "aggregate-metadata",
+      "name": "Aggregate Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 112],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter and Score Emails - with thread-aware original sender boost and forward bonus\n// FIX: Thread deduplication now keeps EARLIEST message to preserve original school/platform emails\nconst items = $input.all();\nif (!items || items.length === 0 || !items[0].json || !items[0].json.messages) {\n  return [{ json: { messages: [], resultSizeEstimate: 0 } }];\n}\n\nlet messages = items[0].json.messages;\n\n// Platform domains - schools and activity platforms\nconst PLATFORM_DOMAINS = [\n  'parentsquare.com', 'konstella.com', 'schooladmin.com', 'bloomz.com',\n  'remind.com', 'classdojo.com', 'seesaw.me', 'brightwheel.com',\n  'schoolloop.com', 'infinitecampus.com', 'teamsnap.com', 'sportsengine.com',\n  // School district domains\n  'brssd.org'\n];\n\n// HIGH VALUE keywords\nconst HIGH_VALUE_KEYWORDS = [\n  'assignment', 'assignments', 'assigned',\n  'homeroom assignment', 'room assignment', 'class assignment', 'classroom assignment',\n  'team assignment', 'grade assignment', 'teacher assignment',\n  'placement', 'placements', 'placed',\n  'grade placement', 'class placement', 'room placement',\n  'classroom', 'homeroom', 'class room', 'home room',\n  'class list', 'class roster', 'grade roster', 'team roster',\n  'enrolled', 'enrollment', 'enroll', 'enrolling',\n  'registered', 'registration', 'register',\n  'signed up', 'sign up', 'signup',\n  'confirmed', 'confirmation', 'confirm',\n  'successfully enrolled', 'successfully registered',\n  'welcome to grade', 'welcome to class', 'welcome to team',\n  'you have been assigned', 'your child has been assigned',\n  'your child is in', 'your student is in',\n  'schedule', 'class schedule', 'school schedule', 'your schedule for'\n];\n\n// LOW VALUE keywords\nconst LOW_VALUE_KEYWORDS = [\n  'newsletter', 'weekly newsletter', 'monthly newsletter',\n  'weekly update', 'monthly update', 'school update',\n  'digest', 'weekly digest', 'daily digest',\n  'announcement', 'announcements',\n  'reminder', 'reminders', 'friendly reminder',\n  'upcoming events', 'this week at', 'next week at',\n  'save the date', 'important dates',\n  'volunteer', 'volunteers needed',\n  'fundraiser', 'fundraising', 'donate', 'donation',\n  'pta meeting', 'pto meeting', 'board meeting',\n  'school closure', 'school closed', 'no school',\n  'holiday', 'break', 'vacation',\n  'spirit week', 'spirit day', 'picture day', 'photo day',\n  'box tops', 'labels for education',\n  'yearbook', 'lunch menu', 'menu for', 'cafeteria',\n  'traffic', 'parking', 'carpool',\n  'weather', 'inclement weather', 'snow day',\n  'testing', 'state testing', 'standardized test'\n];\n\nfunction isPlatformSender(from) {\n  if (!from) return false;\n  const domain = from.split('@')[1]?.toLowerCase();\n  if (!domain) return false;\n  return PLATFORM_DOMAINS.some(pd => domain === pd || domain.endsWith('.' + pd));\n}\n\nfunction hasHighValueKeywords(subject) {\n  if (!subject) return false;\n  const lowerSubject = subject.toLowerCase();\n  return HIGH_VALUE_KEYWORDS.some(keyword => lowerSubject.includes(keyword));\n}\n\nfunction hasLowValueKeywords(subject) {\n  if (!subject) return false;\n  const lowerSubject = subject.toLowerCase();\n  return LOW_VALUE_KEYWORDS.some(keyword => lowerSubject.includes(keyword));\n}\n\nfunction isForwardedEmail(subject) {\n  if (!subject) return false;\n  return /^(fwd|fw):/i.test(subject.trim());\n}\n\nfunction normalizeSubject(subject) {\n  if (!subject) return '';\n  return subject.toLowerCase().replace(/^(re|fwd|fw):\\s*/gi, '').trim().replace(/\\s+/g, ' ');\n}\n\nfunction subjectSimilarity(subj1, subj2) {\n  const norm1 = normalizeSubject(subj1);\n  const norm2 = normalizeSubject(subj2);\n  if (norm1 === norm2) return 100;\n  const words1 = new Set(norm1.split(/\\s+/));\n  const words2 = new Set(norm2.split(/\\s+/));\n  const intersection = new Set([...words1].filter(x => words2.has(x)));\n  const union = new Set([...words1, ...words2]);\n  if (union.size === 0) return 0;\n  return (intersection.size / union.size) * 100;\n}\n\n// Step 1: Thread analysis - find original sender for each thread\nconst threadOriginalSender = new Map();\nconst threadsByDate = new Map();\n\nfor (const msg of messages) {\n  const threadId = msg.threadId;\n  const date = parseInt(msg.internalDate) || 0;\n  if (!threadsByDate.has(threadId)) threadsByDate.set(threadId, []);\n  threadsByDate.get(threadId).push({ msg, date });\n}\n\nfor (const [threadId, threadMessages] of threadsByDate.entries()) {\n  threadMessages.sort((a, b) => a.date - b.date);\n  const originalMsg = threadMessages[0].msg;\n  threadOriginalSender.set(threadId, originalMsg.from || '');\n}\n\n// Step 2: Thread deduplication - keep EARLIEST message (original) over forwards/replies\n// This ensures we keep the original school/platform email, not user's forward\nconst threadMap = new Map();\nfor (const msg of messages) {\n  const threadId = msg.threadId;\n  const isForward = isForwardedEmail(msg.subject);\n  const existing = threadMap.get(threadId);\n  if (!existing) {\n    threadMap.set(threadId, { ...msg, _isForward: isForward });\n  } else {\n    const existingIsForward = existing._isForward;\n    // Prefer non-forward over forward\n    if (existingIsForward && !isForward) {\n      threadMap.set(threadId, { ...msg, _isForward: isForward });\n    } else if (!existingIsForward && isForward) {\n      // Keep existing non-forward\n    } else {\n      // Both are same type (both forwards or both non-forwards)\n      // FIX: Keep EARLIEST message (the original) instead of latest\n      if ((parseInt(msg.internalDate) || 0) < (parseInt(existing.internalDate) || 0)) {\n        threadMap.set(threadId, { ...msg, _isForward: isForward });\n      }\n    }\n  }\n}\nmessages = Array.from(threadMap.values());\n\n// Step 3: Fuzzy subject deduplication - keep EARLIEST for similar subjects from same sender\nconst senderSubjectMap = new Map();\nfor (const msg of messages) {\n  const sender = (msg.from || '').toLowerCase();\n  const subject = msg.subject || '';\n  let matched = false;\n  for (const [key, existingMsg] of senderSubjectMap.entries()) {\n    const [existingSender] = key.split('|||');\n    if (sender === existingSender.toLowerCase()) {\n      const similarity = subjectSimilarity(subject, existingMsg.subject || '');\n      if (similarity >= 80) {\n        // FIX: Keep EARLIEST message instead of latest\n        if ((parseInt(msg.internalDate) || 0) < (parseInt(existingMsg.internalDate) || 0)) {\n          senderSubjectMap.delete(key);\n          senderSubjectMap.set(`${sender}|||${subject}`, msg);\n        }\n        matched = true;\n        break;\n      }\n    }\n  }\n  if (!matched) senderSubjectMap.set(`${sender}|||${subject}`, msg);\n}\nmessages = Array.from(senderSubjectMap.values());\n\n// Step 4: Score messages with thread-aware original sender boost\nfor (const msg of messages) {\n  let score = 0;\n  const labels = msg.labels || [];\n  const isForward = msg._isForward || isForwardedEmail(msg.subject);\n  const originalSender = threadOriginalSender.get(msg.threadId) || msg.from;\n  \n  if (hasHighValueKeywords(msg.subject)) score += 200;\n  if (hasLowValueKeywords(msg.subject)) score -= 150;\n  if (labels.includes('STARRED')) score += 100;\n  if (labels.includes('IMPORTANT')) score += 50;\n  \n  // Platform sender boost based on ORIGINAL sender (+80)\n  if (isPlatformSender(originalSender)) score += 80;\n  \n  // FORWARD BONUS (+50): User thought it was important\n  if (isForward) score += 50;\n  \n  if (msg.internalDate) score += Math.floor(parseInt(msg.internalDate) / (1000 * 60 * 60 * 24 * 7));\n  \n  msg.score = score;\n  msg._originalSender = originalSender;\n}\n\nmessages.sort((a, b) => {\n  if (b.score !== a.score) return b.score - a.score;\n  return (parseInt(b.internalDate) || 0) - (parseInt(a.internalDate) || 0);\n});\n\n// Step 5: Apply sender limit (target 60 emails)\nconst TARGET_COUNT = 60;\nlet senderLimit = 4;\nlet selectedMessages = [];\n\nconst messagesBySender = new Map();\nfor (const msg of messages) {\n  const sender = (msg.from || '').toLowerCase();\n  if (!messagesBySender.has(sender)) messagesBySender.set(sender, []);\n  messagesBySender.get(sender).push(msg);\n}\n\nfor (const senderMessages of messagesBySender.values()) {\n  senderMessages.sort((a, b) => b.score - a.score);\n}\n\nwhile (selectedMessages.length < TARGET_COUNT && senderLimit <= 20) {\n  selectedMessages = [];\n  for (const senderMessages of messagesBySender.values()) {\n    selectedMessages.push(...senderMessages.slice(0, Math.min(senderLimit, senderMessages.length)));\n  }\n  if (selectedMessages.length < TARGET_COUNT) senderLimit++;\n  else break;\n}\n\nselectedMessages.sort((a, b) => {\n  if (b.score !== a.score) return b.score - a.score;\n  return (parseInt(b.internalDate) || 0) - (parseInt(a.internalDate) || 0);\n});\n\nreturn [{ json: { messages: selectedMessages, resultSizeEstimate: selectedMessages.length } }];"
+      },
+      "id": "filter-score-emails",
+      "name": "Filter and Score Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1344, 112],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "(enrolled OR parent OR guardian OR assignment OR homeroom OR roster OR placement OR confirmation OR school OR grade OR teacher OR class OR classroom OR student OR preschool OR kindergarten OR elementary OR middle OR academy OR daycare OR childcare OR pta OR pto OR district OR montessori OR prep OR principal OR booster OR nursery OR unified OR preparatory OR drama OR science OR lacrosse OR orchestra OR mandarin OR theatre OR camp OR coding OR league OR swim OR writing OR chorus OR aftercare OR math OR theater OR language OR hockey OR brownies OR tumbling OR cheerleading OR club OR tutoring OR volleyball OR basketball OR judo OR cheer OR band OR reading OR softball OR choir OR kumon OR homeschool OR soccer OR acting OR golf OR recreation OR dive OR ymca OR steam OR gymnastics OR ayso OR french OR wrestling OR troop OR dance OR ballet OR spanish OR taekwondo OR ywca OR football OR karate OR tap OR art OR jazz OR violin OR music OR tennis OR swimming OR baseball OR diving OR tutor OR stem OR rec OR track OR robotics OR guitar OR enrichment OR chess OR team OR scouts OR piano OR dojo OR gym OR lessons OR martial OR studio OR from:.edu OR from:parentsquare.com OR from:konstella.com OR from:brightwheel.com OR from:remind.com OR from:classdojo.com OR from:teamsnap.com OR from:sportsengine.com) -from:chase.com -from:bankofamerica.com -from:wellsfargo.com -from:capitalone.com -from:americanexpress.com -from:paypal.com -from:venmo.com newer_than:30d" },
+            { "name": "maxResults", "value": "50" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
+        "options": {}
+      },
+      "id": "search-recent",
+      "name": "Search Gmail - Recent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [560, -80],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "(enrolled OR parent OR guardian OR assignment OR homeroom OR roster OR placement OR confirmation OR school OR grade OR teacher OR class OR classroom OR student OR preschool OR kindergarten OR elementary OR middle OR academy OR daycare OR childcare OR pta OR pto OR district OR montessori OR prep OR principal OR booster OR nursery OR unified OR preparatory OR drama OR science OR lacrosse OR orchestra OR mandarin OR theatre OR camp OR coding OR league OR swim OR writing OR chorus OR aftercare OR math OR theater OR language OR hockey OR brownies OR tumbling OR cheerleading OR club OR tutoring OR volleyball OR basketball OR judo OR cheer OR band OR reading OR softball OR choir OR kumon OR homeschool OR soccer OR acting OR golf OR recreation OR dive OR ymca OR steam OR gymnastics OR ayso OR french OR wrestling OR troop OR dance OR ballet OR spanish OR taekwondo OR ywca OR football OR karate OR tap OR art OR jazz OR violin OR music OR tennis OR swimming OR baseball OR diving OR tutor OR stem OR rec OR track OR robotics OR guitar OR enrichment OR chess OR team OR scouts OR piano OR dojo OR gym OR lessons OR martial OR studio OR from:.edu OR from:parentsquare.com OR from:konstella.com OR from:brightwheel.com OR from:remind.com OR from:classdojo.com OR from:teamsnap.com OR from:sportsengine.com) -from:chase.com -from:bankofamerica.com -from:wellsfargo.com -from:capitalone.com -from:americanexpress.com -from:paypal.com -from:venmo.com after:2025/08/01 before:2025/09/30" },
+            { "name": "maxResults", "value": "50" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
+        "options": {}
+      },
+      "id": "search-backtoschool",
+      "name": "Search Gmail - BackToSchool",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [560, 40],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "(enrolled OR parent OR guardian OR assignment OR homeroom OR roster OR placement OR confirmation OR school OR grade OR teacher OR class OR classroom OR student OR preschool OR kindergarten OR elementary OR middle OR academy OR daycare OR childcare OR pta OR pto OR district OR montessori OR prep OR principal OR booster OR nursery OR unified OR preparatory OR drama OR science OR lacrosse OR orchestra OR mandarin OR theatre OR camp OR coding OR league OR swim OR writing OR chorus OR aftercare OR math OR theater OR language OR hockey OR brownies OR tumbling OR cheerleading OR club OR tutoring OR volleyball OR basketball OR judo OR cheer OR band OR reading OR softball OR choir OR kumon OR homeschool OR soccer OR acting OR golf OR recreation OR dive OR ymca OR steam OR gymnastics OR ayso OR french OR wrestling OR troop OR dance OR ballet OR spanish OR taekwondo OR ywca OR football OR karate OR tap OR art OR jazz OR violin OR music OR tennis OR swimming OR baseball OR diving OR tutor OR stem OR rec OR track OR robotics OR guitar OR enrichment OR chess OR team OR scouts OR piano OR dojo OR gym OR lessons OR martial OR studio OR from:.edu OR from:parentsquare.com OR from:konstella.com OR from:brightwheel.com OR from:remind.com OR from:classdojo.com OR from:teamsnap.com OR from:sportsengine.com) -from:chase.com -from:bankofamerica.com -from:wellsfargo.com -from:capitalone.com -from:americanexpress.com -from:paypal.com -from:venmo.com after:2025/10/01 before:2025/11/30" },
+            { "name": "maxResults", "value": "40" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
+        "options": {}
+      },
+      "id": "search-fall",
+      "name": "Search Gmail - Fall",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [560, 160],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "(enrolled OR parent OR guardian OR assignment OR homeroom OR roster OR placement OR confirmation OR school OR grade OR teacher OR class OR classroom OR student OR preschool OR kindergarten OR elementary OR middle OR academy OR daycare OR childcare OR pta OR pto OR district OR montessori OR prep OR principal OR booster OR nursery OR unified OR preparatory OR drama OR science OR lacrosse OR orchestra OR mandarin OR theatre OR camp OR coding OR league OR swim OR writing OR chorus OR aftercare OR math OR theater OR language OR hockey OR brownies OR tumbling OR cheerleading OR club OR tutoring OR volleyball OR basketball OR judo OR cheer OR band OR reading OR softball OR choir OR kumon OR homeschool OR soccer OR acting OR golf OR recreation OR dive OR ymca OR steam OR gymnastics OR ayso OR french OR wrestling OR troop OR dance OR ballet OR spanish OR taekwondo OR ywca OR football OR karate OR tap OR art OR jazz OR violin OR music OR tennis OR swimming OR baseball OR diving OR tutor OR stem OR rec OR track OR robotics OR guitar OR enrichment OR chess OR team OR scouts OR piano OR dojo OR gym OR lessons OR martial OR studio OR from:.edu OR from:parentsquare.com OR from:konstella.com OR from:brightwheel.com OR from:remind.com OR from:classdojo.com OR from:teamsnap.com OR from:sportsengine.com) -from:chase.com -from:bankofamerica.com -from:wellsfargo.com -from:capitalone.com -from:americanexpress.com -from:paypal.com -from:venmo.com after:2024/12/01 before:2025/01/31" },
+            { "name": "maxResults", "value": "40" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
+        "options": {}
+      },
+      "id": "search-winter",
+      "name": "Search Gmail - Winter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [560, 280],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "(enrolled OR parent OR guardian OR assignment OR homeroom OR roster OR placement OR confirmation OR school OR grade OR teacher OR class OR classroom OR student OR preschool OR kindergarten OR elementary OR middle OR academy OR daycare OR childcare OR pta OR pto OR district OR montessori OR prep OR principal OR booster OR nursery OR unified OR preparatory OR drama OR science OR lacrosse OR orchestra OR mandarin OR theatre OR camp OR coding OR league OR swim OR writing OR chorus OR aftercare OR math OR theater OR language OR hockey OR brownies OR tumbling OR cheerleading OR club OR tutoring OR volleyball OR basketball OR judo OR cheer OR band OR reading OR softball OR choir OR kumon OR homeschool OR soccer OR acting OR golf OR recreation OR dive OR ymca OR steam OR gymnastics OR ayso OR french OR wrestling OR troop OR dance OR ballet OR spanish OR taekwondo OR ywca OR football OR karate OR tap OR art OR jazz OR violin OR music OR tennis OR swimming OR baseball OR diving OR tutor OR stem OR rec OR track OR robotics OR guitar OR enrichment OR chess OR team OR scouts OR piano OR dojo OR gym OR lessons OR martial OR studio OR from:.edu OR from:parentsquare.com OR from:konstella.com OR from:brightwheel.com OR from:remind.com OR from:classdojo.com OR from:teamsnap.com OR from:sportsengine.com) -from:chase.com -from:bankofamerica.com -from:wellsfargo.com -from:capitalone.com -from:americanexpress.com -from:paypal.com -from:venmo.com after:2025/02/01 before:2025/07/31" },
+            { "name": "maxResults", "value": "40" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
+        "options": {}
+      },
+      "id": "search-spring",
+      "name": "Search Gmail - Spring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [560, 400],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Collect results from all 5 parallel Gmail searches\nconst items = $input.all();\nconst allMessages = [];\n\nfor (const item of items) {\n  if (item.json?.messages && Array.isArray(item.json.messages)) {\n    allMessages.push(...item.json.messages);\n  }\n}\n\nreturn [{\n  json: {\n    messages: allMessages,\n    resultSizeEstimate: allMessages.length\n  }\n}];"
+      },
+      "id": "wait-for-searches",
+      "name": "Wait For All Searches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [736, 160],
+      "alwaysOutputData": true
     }
   ],
   "connections": {
-    "Supabase OAuth Webhook": {
-      "main": [[{"node": "OAuth Successful?", "type": "main", "index": 0}]]
-    },
-    "OAuth Successful?": {
-      "main": [[{"node": "Check if User Exists", "type": "main", "index": 0}]]
-    },
-    "Check if User Exists": {
-      "main": [[{"node": "Is New User?", "type": "main", "index": 0}]]
-    },
-    "Is New User?": {
-      "main": [
-        [{"node": "Create User", "type": "main", "index": 0}],
-        [{"node": "Update Existing User", "type": "main", "index": 0}]
-      ]
-    },
-    "Create User": {
-      "main": [[{"node": "Create Connected Service", "type": "main", "index": 0}]]
-    },
-    "Create Connected Service": {
-      "main": [[{"node": "Get Token from Supabase", "type": "main", "index": 0}]]
-    },
-    "Update Existing User": {
-      "main": [[{"node": "Get Token from Supabase", "type": "main", "index": 0}]]
-    },
-    "Get Token from Supabase": {
-      "main": [[{"node": "Search Gmail For Usual Suspects", "type": "main", "index": 0}]]
-    },
-    "Search Gmail For Usual Suspects": {
-      "main": [[{"node": "Split Out", "type": "main", "index": 0}]]
-    },
-    "Split Out": {
-      "main": [[{"node": "Add Token To Items", "type": "main", "index": 0}]]
-    },
-    "Add Token To Items": {
-      "main": [[{"node": "Pull Discovered Emails", "type": "main", "index": 0}]]
-    },
-    "Pull Discovered Emails": {
-      "main": [[{"node": "Convert To Readable Email", "type": "main", "index": 0}]]
-    },
-    "Convert To Readable Email": {
-      "main": [[{"node": "Combined AI Agent", "type": "main", "index": 0}]]
-    },
-    "Combined AI Agent": {
-      "main": [[{"node": "Parse Sentences Array", "type": "main", "index": 0}]]
-    },
-    "OpenAI Chat Model GPT-4o": {
-      "ai_languageModel": [[{"node": "Combined AI Agent", "type": "ai_languageModel", "index": 0}]]
-    },
-    "Parse Sentences Array": {
-      "main": [[{"node": "Save Onboarding Summaries", "type": "main", "index": 0}]]
-    },
-    "Save Onboarding Summaries": {
-      "main": [[{"node": "Check Update Result", "type": "main", "index": 0}]]
-    },
-    "Check Update Result": {
-      "main": [[{"node": "Insert Onboarding Summaries", "type": "main", "index": 0}]]
-    }
+    "Supabase OAuth Webhook": { "main": [[{ "node": "OAuth Successful?", "type": "main", "index": 0 }]] },
+    "OAuth Successful?": { "main": [[{ "node": "Check if User Exists", "type": "main", "index": 0 }]] },
+    "Is New User?": { "main": [[{ "node": "Create User", "type": "main", "index": 0 }], [{ "node": "Update Existing User", "type": "main", "index": 0 }]] },
+    "Update Existing User": { "main": [[{ "node": "Get Token from Supabase", "type": "main", "index": 0 }]] },
+    "Add Token To Items": { "main": [[{ "node": "Pull Discovered Emails", "type": "main", "index": 0 }]] },
+    "Pull Discovered Emails": { "main": [[{ "node": "Convert To Readable Email", "type": "main", "index": 0 }]] },
+    "Convert To Readable Email": { "main": [[{ "node": "Filter Out Blank Emails", "type": "main", "index": 0 }]] },
+    "OpenAI Chat Model GPT-4o": { "ai_languageModel": [[{ "node": "Extraction System", "type": "ai_languageModel", "index": 0 }]] },
+    "Parse Sentences Array": { "main": [[{ "node": "Save Onboarding Summaries", "type": "main", "index": 0 }]] },
+    "Save Onboarding Summaries": { "main": [[{ "node": "Preserve Data for Insert", "type": "main", "index": 0 }]] },
+    "Filter Out Blank Emails": { "main": [[{ "node": "Extraction System", "type": "main", "index": 0 }]] },
+    "Extraction System": { "main": [[{ "node": "Aggregate Extractions", "type": "main", "index": 0 }]] },
+    "Consolidator System": { "main": [[{ "node": "Parse Sentences Array", "type": "main", "index": 0 }]] },
+    "OpenAI Chat Model": { "ai_languageModel": [[{ "node": "Consolidator System", "type": "ai_languageModel", "index": 0 }]] },
+    "Aggregate Extractions": { "main": [[{ "node": "Consolidator System", "type": "main", "index": 0 }]] },
+    "Preserve Data for Insert": { "main": [[{ "node": "Check Update Result", "type": "main", "index": 0 }]] },
+    "Create User": { "main": [[{ "node": "Get Token from Supabase", "type": "main", "index": 0 }]] },
+    "Select 60 Emails": { "main": [[{ "node": "Add Token To Items", "type": "main", "index": 0 }]] },
+    "Check if User Exists": { "main": [[{ "node": "Check User Count", "type": "main", "index": 0 }]] },
+    "Check User Count": { "main": [[{ "node": "Is New User?", "type": "main", "index": 0 }]] },
+    "Aggregate Gmail Results": { "main": [[{ "node": "Split Messages for Metadata", "type": "main", "index": 0 }]] },
+    "Split Messages for Metadata": { "main": [[{ "node": "Fetch Message Metadata", "type": "main", "index": 0 }]] },
+    "Fetch Message Metadata": { "main": [[{ "node": "Aggregate Metadata", "type": "main", "index": 0 }]] },
+    "Aggregate Metadata": { "main": [[{ "node": "Filter and Score Emails", "type": "main", "index": 0 }]] },
+    "Filter and Score Emails": { "main": [[{ "node": "Select 60 Emails", "type": "main", "index": 0 }]] },
+    "Check Update Result": { "main": [[{ "node": "Insert Onboarding Summaries", "type": "main", "index": 0 }]] },
+    "Get Token from Supabase": { "main": [[{ "node": "Search Gmail - Recent", "type": "main", "index": 0 }, { "node": "Search Gmail - BackToSchool", "type": "main", "index": 0 }, { "node": "Search Gmail - Fall", "type": "main", "index": 0 }, { "node": "Search Gmail - Winter", "type": "main", "index": 0 }, { "node": "Search Gmail - Spring", "type": "main", "index": 0 }]] },
+    "Search Gmail - Recent": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
+    "Search Gmail - BackToSchool": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
+    "Search Gmail - Fall": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
+    "Search Gmail - Winter": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
+    "Search Gmail - Spring": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
+    "Wait For All Searches": { "main": [[{ "node": "Aggregate Gmail Results", "type": "main", "index": 0 }]] }
   },
   "settings": {
     "executionOrder": "v1",
@@ -583,11 +563,6 @@
     "saveDataSuccessExecution": "all",
     "saveManualExecutions": true,
     "saveExecutionProgress": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
-  },
-  "createdAt": "2025-12-19T20:26:31.860Z",
-  "updatedAt": "2025-12-19T23:39:12.719Z",
-  "versionId": "a671eded-4f58-4fec-a2c1-60d430265741"
+    "callerPolicy": "workflowsFromSameOwner"
+  }
 }
-

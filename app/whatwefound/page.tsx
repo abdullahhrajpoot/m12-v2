@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Sparkles, MessageSquare, Send, ThumbsUp, Clock } from 'lucide-react'
+import { Check, Sparkles, MessageSquare, Send, ThumbsUp, Clock, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
@@ -39,9 +39,12 @@ const LoadingState = ({ progress, elapsed, tip }: LoadingStateProps) => {
           <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
             <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">Analyzing your inbox...</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-3">Getting to know your family...</h1>
           <p className="text-lg text-slate-600 max-w-lg mx-auto">
-            This can take up to 6 minutes. We're searching for keywords like "school," "elementary," "soccer," and "ballet" to find what matters to your family.
+            I'm scanning your recent emails to learn about your kids' schools, activities, and schedules. This takes about a minute.
+          </p>
+          <p className="text-sm text-slate-400 mt-4 max-w-md mx-auto">
+            This is just a first pass — I won't catch everything, and I might get some things wrong. You'll be able to correct me next.
           </p>
         </motion.div>
 
@@ -97,6 +100,28 @@ const LoadingState = ({ progress, elapsed, tip }: LoadingStateProps) => {
   )
 }
 
+// Helper function to group and sort facts by first word
+function groupFactsByFirstWord(facts: string[]): { word: string; facts: string[] }[] {
+  const groups: Record<string, string[]> = {}
+  
+  facts.forEach(fact => {
+    const firstWord = fact.trim().split(/\s+/)[0] || 'Other'
+    if (!groups[firstWord]) {
+      groups[firstWord] = []
+    }
+    groups[firstWord].push(fact)
+  })
+  
+  // Sort by count (most common first), then alphabetically for ties
+  return Object.entries(groups)
+    .sort((a, b) => {
+      const countDiff = b[1].length - a[1].length
+      if (countDiff !== 0) return countDiff
+      return a[0].localeCompare(b[0])
+    })
+    .map(([word, facts]) => ({ word, facts }))
+}
+
 interface FactCardProps {
   fact: string
   index: number
@@ -114,6 +139,87 @@ const FactCard = ({ fact, index }: FactCardProps) => (
   </motion.div>
 )
 
+// Timeout state component for when no facts are found
+interface TimeoutStateProps {
+  onSubmit: (text: string) => Promise<void>
+  submitting: boolean
+}
+
+const TimeoutState = ({ onSubmit, submitting }: TimeoutStateProps) => {
+  const [familyInfo, setFamilyInfo] = useState("")
+
+  return (
+    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-2xl mx-auto">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-10"
+        >
+          <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
+            <Mail className="w-6 h-6 text-slate-400" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-3">I didn't find much yet</h1>
+          <p className="text-lg text-slate-600 max-w-lg mx-auto">
+            Your inbox didn't have many clues about your kids' schedules — maybe you're new to these activities, or the emails haven't started yet. No problem! Just tell me a bit about your family and I'll take it from there.
+          </p>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <MessageSquare className="w-5 h-5 text-slate-400" />
+            <h3 className="font-bold text-slate-900">Who are your kids, and what are they up to these days?</h3>
+          </div>
+          
+          <Textarea 
+            placeholder="e.g., I have two kids - Emma (8) does soccer on Saturdays and piano on Tuesdays. Jake (5) just started kindergarten at Lincoln Elementary..."
+            className="min-h-[200px] mb-6 resize-none bg-slate-50 border-slate-200 focus:bg-white transition-colors"
+            value={familyInfo}
+            onChange={(e) => setFamilyInfo(e.target.value)}
+          />
+
+          <Button 
+            onClick={() => onSubmit(familyInfo)}
+            disabled={submitting || !familyInfo.trim()}
+            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            {submitting ? "Saving..." : "Tell Me About Your Family"}
+          </Button>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
+// Success state after submission
+const SuccessState = () => (
+  <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="max-w-lg bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center"
+    >
+      <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <Check className="w-8 h-8 text-emerald-600" />
+      </div>
+      <h2 className="text-2xl font-bold text-slate-900 mb-4">Got it — I'll remember that.</h2>
+      <p className="text-slate-600 leading-relaxed">
+        Feel free to email me at{' '}
+        <a href="mailto:fgm@bippity.boo" className="text-indigo-600 hover:text-indigo-700 font-medium">
+          fgm@bippity.boo
+        </a>
+        {' '}when any facts change or if you want to correct or adjust how I handle things.
+      </p>
+    </motion.div>
+  </div>
+)
+
 export default function WhatWeFound() {
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -123,6 +229,8 @@ export default function WhatWeFound() {
   const [facts, setFacts] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [tip, setTip] = useState("")
+  const [timedOut, setTimedOut] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const router = useRouter()
 
   const EXPECTED_DURATION = 360 // 6 minutes maximum wait time
@@ -208,8 +316,8 @@ export default function WhatWeFound() {
     // Force show results after 6 minutes (failsafe)
     const timeout = setTimeout(() => {
       if (!hasLoadedFacts) {
-        // If no facts loaded after 6 minutes, show error
-        setError("Taking longer than expected. Please refresh the page or contact support.")
+        // If no facts loaded after 6 minutes, show timeout state
+        setTimedOut(true)
         setLoading(false)
       }
       clearInterval(progressInterval)
@@ -244,10 +352,8 @@ export default function WhatWeFound() {
         throw new Error('Failed to process facts')
       }
 
-      toast.success(isAllGood ? "Great! We're saving your facts." : "Thanks! We're refining your facts with your edits.")
-      
-      // Redirect to dashboard
-      router.push('/dashboard')
+      // Show success state instead of redirecting to dashboard
+      setSubmitted(true)
     } catch (error) {
       console.error(error)
       toast.error("Something went wrong. Please try again.")
@@ -256,8 +362,47 @@ export default function WhatWeFound() {
     }
   }
 
+  // Handle timeout state submission (when user provides family info manually)
+  const handleTimeoutSubmit = async (familyInfo: string) => {
+    setSubmitting(true)
+    try {
+      const response = await fetch('/api/onboarding/finalize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          facts: [],
+          userEdits: familyInfo.trim(),
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save family information')
+      }
+
+      // Show success state
+      setSubmitted(true)
+    } catch (error) {
+      console.error(error)
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Show success state after submission
+  if (submitted) {
+    return <SuccessState />
+  }
+
   if (loading) {
     return <LoadingState progress={progress} elapsed={elapsed} tip={tip} />
+  }
+
+  // Show timeout state when no facts were found after waiting
+  if (timedOut || (facts.length === 0 && !loading)) {
+    return <TimeoutState onSubmit={handleTimeoutSubmit} submitting={submitting} />
   }
 
   if (error) {
@@ -277,6 +422,9 @@ export default function WhatWeFound() {
     )
   }
 
+  // Group facts by first word for display
+  const groupedFacts = groupFactsByFirstWord(facts)
+
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
@@ -288,9 +436,9 @@ export default function WhatWeFound() {
           <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
             <Sparkles className="w-6 h-6 text-indigo-500" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">Here's what we found ✨</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-3">Here's what I found so far</h1>
           <p className="text-lg text-slate-600 max-w-lg mx-auto">
-            We searched your inbox for kid-related keywords and extracted key facts about your family. Let us know if we got it right.
+            Based on your emails, here's my best guess about your family. Some of this might be wrong or incomplete — that's normal! Help me learn by confirming what's right and filling in what I missed.
           </p>
         </motion.div>
 
@@ -302,24 +450,26 @@ export default function WhatWeFound() {
             </h3>
           </div>
           
-          <div className="space-y-1.5">
-            {facts.map((fact, index) => (
-              <FactCard key={index} fact={fact} index={index} />
+          <div className="space-y-6">
+            {groupedFacts.map((group, groupIndex) => (
+              <div key={group.word}>
+                {groupedFacts.length > 1 && (
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
+                    {group.word} ({group.facts.length})
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {group.facts.map((fact, factIndex) => (
+                    <FactCard 
+                      key={`${groupIndex}-${factIndex}`} 
+                      fact={fact} 
+                      index={groupIndex * 10 + factIndex} 
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-
-          {facts.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-slate-400 mb-2">📭</div>
-              <p className="text-slate-600">
-                We didn't find any facts in your recent emails. This might mean:
-              </p>
-              <ul className="text-sm text-slate-500 mt-2 space-y-1">
-                <li>• You don't have school/activity emails yet</li>
-                <li>• Your emails don't match our search patterns</li>
-              </ul>
-            </div>
-          )}
         </div>
 
         <motion.div 
@@ -328,13 +478,16 @@ export default function WhatWeFound() {
           transition={{ delay: 0.3 }}
           className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100"
         >
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-2">
             <MessageSquare className="w-5 h-5 text-slate-400" />
             <h3 className="font-bold text-slate-900">Anything we missed or got wrong?</h3>
           </div>
+          <p className="text-sm text-slate-500 mb-4">
+            Just tell me what's off — or what I missed entirely. Plain English is fine.
+          </p>
           
           <Textarea 
-            placeholder="e.g., We also have ballet on Wednesdays at 3:30pm..."
+            placeholder="Actually, Cora does gymnastics on Thursdays, not Tuesdays..."
             className="min-h-[120px] mb-6 resize-none bg-slate-50 border-slate-200 focus:bg-white transition-colors"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -353,15 +506,14 @@ export default function WhatWeFound() {
             ) : (
               <>
                 <ThumbsUp className="w-4 h-4 mr-2" />
-                Confirm Facts Above
+                Looks Good!
               </>
             )}
           </Button>
         </motion.div>
 
         <p className="text-center text-sm text-slate-400 mt-8">
-          We'll use this information to help manage your calendar and tasks. <br />
-          You can always update this later in your settings.
+          You can always email me at <a href="mailto:fgm@bippity.boo" className="text-indigo-500 hover:text-indigo-600">fgm@bippity.boo</a> to update this later.
         </p>
       </div>
     </div>

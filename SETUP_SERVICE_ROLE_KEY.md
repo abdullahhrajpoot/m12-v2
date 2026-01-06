@@ -30,6 +30,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... (your anon
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... (your service role key)
 
 # n8n API Key (generate a secure random key)
+# This key is used for service-to-service authentication between n8n and Next.js
+# Must be set in BOTH Railway AND n8n Cloud (same value in both places)
 N8N_API_KEY=your-secure-random-key-here
 ```
 
@@ -50,11 +52,13 @@ N8N_API_KEY=your-secure-random-key-here
    **Variable 2:**
    - **Key:** `N8N_API_KEY`
    - **Value:** (generate a secure key - see below)
-   - **Description:** API key for n8n workflows to authenticate token requests
+   - **Description:** API key for n8n workflows to authenticate token requests. **Note:** This same key must also be set in n8n Cloud environment variables.
 
 ## Step 4: Generate N8N_API_KEY
 
-You need a secure random key for n8n to authenticate API calls. Generate one using:
+You need a secure random key for service-to-service authentication between n8n and your Next.js app. **This same key must be set in both Railway AND n8n Cloud.**
+
+Generate one using:
 
 ```bash
 # Option 1: Using OpenSSL
@@ -72,7 +76,24 @@ This will generate something like:
 a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456
 ```
 
-Copy this value and use it as your `N8N_API_KEY` in Railway.
+Copy this value and use it as your `N8N_API_KEY` in:
+1. **Railway** (Next.js app environment) - to validate incoming requests
+2. **n8n Cloud** (n8n environment variables) - for workflows to authenticate requests
+
+### Step 4b: Add N8N_API_KEY to n8n Cloud
+
+1. Go to your n8n Cloud instance
+2. Navigate to **Settings** → **Environment Variables** (or similar)
+3. Add a new environment variable:
+   - **Key:** `N8N_API_KEY`
+   - **Value:** (use the same key value from Step 4)
+4. Save the variable
+
+**Why two places?**
+- **Railway**: Next.js uses `process.env.N8N_API_KEY` to validate requests from n8n
+- **n8n Cloud**: n8n workflows use `$env.N8N_API_KEY` to authenticate when calling your Next.js API
+
+Both services need the **same shared secret** for authentication.
 
 ## Step 5: Redeploy
 
@@ -96,7 +117,10 @@ After adding the environment variables to Railway:
 2. **N8N_API_KEY:**
    - ⚠️ Keep it secret and only share with n8n workflows
    - ⚠️ Don't commit to git
+   - ⚠️ Must be set in **both Railway AND n8n Cloud** (same value)
    - ✅ Use it to authenticate n8n's requests to `/api/auth/tokens`
+   - **Railway**: Validates incoming requests (compares header to `process.env.N8N_API_KEY`)
+   - **n8n Cloud**: Workflows use it in Authorization header (`Bearer $env.N8N_API_KEY`)
 
 3. **Both keys are already in `.gitignore`:**
    - Your `.env.local` file is ignored by git

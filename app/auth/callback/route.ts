@@ -92,8 +92,9 @@ export async function GET(request: Request) {
             console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
             
             // Trigger n8n onboarding workflow (non-blocking - don't fail OAuth if webhook fails)
+            // Using parallelized workflow for 8-16x faster execution (30-60s vs 8 min)
             const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
-              'https://chungxchung.app.n8n.cloud/webhook/supabase-oauth'
+              'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
             
             // Call webhook - don't await to avoid blocking redirect, but handle errors
             fetch(n8nWebhookUrl, {

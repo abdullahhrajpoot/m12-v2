@@ -188,3 +188,9 @@ In Nango Dashboard:
 4. **OAuth not working:** Check Nango redirect URLs and public key
 
 
+
+
+
+
+
+
