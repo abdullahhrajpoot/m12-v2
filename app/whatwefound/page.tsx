@@ -457,7 +457,7 @@ export default function WhatWeFound() {
               >
                 {groupedFacts.length > 1 && (
                   <div className="text-xs font-medium text-indigo-500 uppercase tracking-wider mb-3">
-                    {group.word} ({group.facts.length})
+                    {group.word}
                   </div>
                 )}
                 <ul className="space-y-2">
