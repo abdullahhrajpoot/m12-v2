@@ -266,7 +266,7 @@ export default function Home() {
               <img 
                 src="/logo.png" 
                 alt="Bippity" 
-                className="w-10 h-10 object-contain"
+                className="w-auto h-[120px] object-contain -my-8"
               />
               <span className="text-xl font-bold text-slate-900">Bippity</span>
             </div>
