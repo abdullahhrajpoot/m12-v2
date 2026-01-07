@@ -259,14 +259,14 @@ export default function Home() {
   return (
     <div className="relative min-h-screen">
       {/* Header with Logo */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="relative z-50 bg-transparent">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img 
                 src="/logo.png" 
                 alt="Bippity" 
-                className="w-auto h-[120px] object-contain -my-8"
+                className="w-auto h-[120px] object-contain"
               />
               <span className="text-xl font-bold text-slate-900">Bippity</span>
             </div>
@@ -281,7 +281,7 @@ export default function Home() {
       <ChaosBackground />
       
       {/* Hero Section */}
-      <section className="relative pt-28 pb-20 lg:pt-40 lg:pb-32 bg-transparent z-10">
+      <section className="relative pt-8 pb-20 lg:pt-12 lg:pb-32 bg-transparent z-10">
         {/* Background Gradients */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full overflow-hidden pointer-events-none -z-10">
           <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-purple-100/30 rounded-full blur-3xl -translate-y-1/2" />
@@ -449,7 +449,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl font-bold text-slate-900 mb-6">"But you're reading my email?"</h2>
             <p className="text-lg text-slate-600 leading-relaxed">
-              Your privacy comes first. We only see what we need to - we set up our Gmail integration to filter out sensitive content before it ever reaches us. Faster for everyone, safer for everyone. And yes, run on a SOC2 Type II certified platform.
+              Your privacy comes first. We only see what we need to - we set up our Gmail integration to filter out sensitive content before it ever reaches us. Faster for everyone, safer for everyone. And yes, I run on a SOC2 Type II certified platform.
             </p>
           </div>
         </div>
