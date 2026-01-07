@@ -9,6 +9,23 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 
+const Header = () => (
+  <header className="relative z-50 bg-transparent">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
+      <div className="flex items-center">
+        <div className="flex items-center gap-2">
+          <img 
+            src="/logo.png" 
+            alt="bippity.boo" 
+            className="w-auto h-[100px] object-contain"
+          />
+          <span className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">bippity.boo</span>
+        </div>
+      </div>
+    </div>
+  </header>
+)
+
 interface LoadingStateProps {
   progress: number
   elapsed: number
@@ -29,7 +46,9 @@ const LoadingState = ({ progress, elapsed, tip }: LoadingStateProps) => {
   , stages[0])
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50">
+      <Header />
+      <div className="py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -96,6 +115,7 @@ const LoadingState = ({ progress, elapsed, tip }: LoadingStateProps) => {
           )}
         </motion.div>
       </div>
+      </div>
     </div>
   )
 }
@@ -149,7 +169,9 @@ const TimeoutState = ({ onSubmit, submitting }: TimeoutStateProps) => {
   const [familyInfo, setFamilyInfo] = useState("")
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50">
+      <Header />
+      <div className="py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -193,13 +215,16 @@ const TimeoutState = ({ onSubmit, submitting }: TimeoutStateProps) => {
           </Button>
         </motion.div>
       </div>
+      </div>
     </div>
   )
 }
 
 // Success state after submission
 const SuccessState = () => (
-  <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+  <div className="min-h-screen bg-slate-50">
+    <Header />
+    <div className="py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center min-h-[calc(100vh-120px)]">
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -217,6 +242,7 @@ const SuccessState = () => (
         {' '}when any facts change or if you want to correct or adjust how I handle things.
       </p>
     </motion.div>
+    </div>
   </div>
 )
 
@@ -409,7 +435,9 @@ export default function WhatWeFound() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 py-12 px-4 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50">
+        <Header />
+        <div className="py-12 px-4 flex items-center justify-center">
         <div className="max-w-md bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
           <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">⚠️</span>
@@ -420,6 +448,7 @@ export default function WhatWeFound() {
             Try Again
           </Button>
         </div>
+        </div>
       </div>
     )
   }
@@ -428,7 +457,9 @@ export default function WhatWeFound() {
   const groupedFacts = groupFactsByFirstWord(facts)
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50">
+      <Header />
+      <div className="py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -516,6 +547,7 @@ export default function WhatWeFound() {
         <p className="text-center text-sm text-slate-400 mt-8">
           You can always email me at <a href="mailto:fgm@bippity.boo" className="text-indigo-500 hover:text-indigo-600">fgm@bippity.boo</a> to update this later.
         </p>
+      </div>
       </div>
     </div>
   )
