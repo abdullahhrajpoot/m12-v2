@@ -260,15 +260,15 @@ export default function Home() {
     <div className="relative min-h-screen">
       {/* Header with Logo */}
       <header className="relative z-50 bg-transparent">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <img 
                 src="/logo.png" 
-                alt="Bippity" 
-                className="w-auto h-[120px] object-contain"
+                alt="bippity.boo" 
+                className="w-auto h-[100px] object-contain"
               />
-              <span className="text-xl font-bold text-slate-900">Bippity</span>
+              <span className="text-xl font-bold text-slate-900">bippity.boo</span>
             </div>
             <nav className="hidden sm:flex items-center gap-6">
               <a href="#how-it-works" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
