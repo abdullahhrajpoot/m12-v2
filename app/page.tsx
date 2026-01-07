@@ -268,7 +268,7 @@ export default function Home() {
                 alt="bippity.boo" 
                 className="w-auto h-[100px] object-contain"
               />
-              <span className="text-xl font-bold text-slate-900">bippity.boo</span>
+              <span className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">bippity.boo</span>
             </div>
             <nav className="hidden sm:flex items-center gap-6">
               <a href="#how-it-works" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
