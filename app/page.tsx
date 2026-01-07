@@ -258,10 +258,30 @@ export default function Home() {
   }, [router])
   return (
     <div className="relative min-h-screen">
+      {/* Header with Logo */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <img 
+                src="/logo.png" 
+                alt="Bippity" 
+                className="w-10 h-10 object-contain"
+              />
+              <span className="text-xl font-bold text-slate-900">Bippity</span>
+            </div>
+            <nav className="hidden sm:flex items-center gap-6">
+              <a href="#how-it-works" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
+              <a href="#privacy" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Privacy</a>
+            </nav>
+          </div>
+        </div>
+      </header>
+
       <ChaosBackground />
       
       {/* Hero Section */}
-      <section className="relative pt-20 pb-20 lg:pt-32 lg:pb-32 bg-transparent z-10">
+      <section className="relative pt-28 pb-20 lg:pt-40 lg:pb-32 bg-transparent z-10">
         {/* Background Gradients */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full overflow-hidden pointer-events-none -z-10">
           <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-purple-100/30 rounded-full blur-3xl -translate-y-1/2" />
