@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Trigger n8n workflow to process facts and send welcome email
-    // Wait with timeout to catch immediate errors, but don't block forever
+    // CRITICAL: Wait for webhook to confirm data is saved (up to 60 seconds)
     const n8nWebhookUrl = process.env.N8N_ONBOARDING_FINALIZE_WEBHOOK_URL ||
       'https://chungxchung.app.n8n.cloud/webhook/onboarding-finalize'
     
@@ -72,8 +72,7 @@ export async function POST(request: NextRequest) {
       userEdits: userEdits, // null if "It's All Good", otherwise the user's edits
     }
 
-    // Wait for webhook with 8 second timeout to catch immediate errors
-    // If it times out, we still return success (webhook may process async)
+    // Wait for webhook with 60 second timeout - user must wait for confirmation
     const webhookPromise = fetch(n8nWebhookUrl, {
       method: 'POST',
       headers: {
@@ -87,32 +86,39 @@ export async function POST(request: NextRequest) {
         console.error('❌ n8n webhook returned error status:', webhookResponse.status, 'error:', errorText)
         throw new Error(`Webhook returned ${webhookResponse.status}: ${errorText}`)
       }
-      console.log('✅ Onboarding finalize webhook triggered successfully for user:', user.id)
-      return true
+      console.log('✅ Onboarding finalize webhook confirmed data saved for user:', user.id)
+      return { success: true, timedOut: false }
     })
     .catch((webhookError) => {
       console.error('❌ Error calling n8n onboarding finalize webhook:', webhookError)
-      // Still return success - webhook may process async or can be retried
-      return false
+      throw webhookError
     })
 
-    // Race between webhook and timeout
-    const timeoutPromise = new Promise((resolve) => {
+    // Race between webhook and 60 second timeout
+    const timeoutPromise = new Promise<{ success: false, timedOut: true }>((resolve) => {
       setTimeout(() => {
-        console.warn('⏱️ Webhook timeout after 8 seconds - proceeding anyway (may process async)')
-        resolve(false)
-      }, 8000) // 8 second timeout
+        console.warn('⏱️ Webhook timeout after 60 seconds - data may not be saved')
+        resolve({ success: false, timedOut: true })
+      }, 60000) // 60 second timeout
     })
 
     // Wait for whichever completes first
-    const webhookSuccess = await Promise.race([webhookPromise, timeoutPromise]) as boolean
+    const result = await Promise.race([webhookPromise, timeoutPromise])
 
-    // Return success regardless - webhook processing is async
-    // If webhook failed, it's logged and can be retried manually if needed
+    if (result.timedOut) {
+      // Timeout - return error so user can use email fallback
+      return NextResponse.json({
+        success: false,
+        timedOut: true,
+        message: 'Processing is taking longer than expected',
+        facts: facts, // Include facts for email fallback
+      }, { status: 408 }) // 408 Request Timeout
+    }
+
+    // Success - data is confirmed saved
     return NextResponse.json({
       success: true,
-      message: 'Onboarding finalized successfully',
-      webhookProcessed: webhookSuccess, // Indicates if webhook responded within timeout
+      message: 'Onboarding finalized successfully - data saved',
     })
 
   } catch (error) {

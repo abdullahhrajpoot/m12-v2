@@ -221,6 +221,89 @@ const TimeoutState = ({ onSubmit, submitting }: TimeoutStateProps) => {
 }
 
 // Success state after submission
+const SavingState = ({ facts }: { facts: string[] }) => {
+  const emailBody = encodeURIComponent(
+    `Hi,\n\nI tried to submit my onboarding facts but the system timed out. Here are my facts:\n\n${facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\nPlease save these for me.\n\nThanks!`
+  )
+  const emailLink = `mailto:fgm@bippity.boo?subject=Onboarding Facts - Timeout&body=${emailBody}`
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Header />
+      <div className="py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center min-h-[calc(100vh-120px)]">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-lg bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center"
+        >
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="w-8 h-8 text-amber-600 animate-pulse" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-3">Saving your data...</h2>
+          <p className="text-slate-600 mb-6">
+            Please wait while we confirm your facts are saved. This may take up to a minute.
+          </p>
+          <div className="flex items-center justify-center gap-2 text-slate-400 mb-8">
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <div className="pt-6 border-t border-slate-200">
+            <p className="text-sm text-slate-500 mb-4">
+              If this takes more than a minute, you can email your facts directly:
+            </p>
+            <a
+              href={emailLink}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Mail className="w-4 h-4" />
+              Email Facts to fgm@bippity.boo
+            </a>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
+const TimeoutEmailState = ({ facts }: { facts: string[] }) => {
+  const emailBody = encodeURIComponent(
+    `Hi,\n\nI tried to submit my onboarding facts but the system timed out after 1 minute. Here are my facts:\n\n${facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\nPlease save these for me.\n\nThanks!`
+  )
+  const emailLink = `mailto:fgm@bippity.boo?subject=Onboarding Facts - Timeout&body=${emailBody}`
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Header />
+      <div className="py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center min-h-[calc(100vh-120px)]">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-lg bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center"
+        >
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="w-8 h-8 text-amber-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-3">Saving took longer than expected</h2>
+          <p className="text-slate-600 mb-6">
+            We couldn't confirm your data was saved within 1 minute. To make sure your facts are saved, please email them directly:
+          </p>
+          <a
+            href={emailLink}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors mb-4"
+          >
+            <Mail className="w-4 h-4" />
+            Email Facts to fgm@bippity.boo
+          </a>
+          <p className="text-sm text-slate-500">
+            The email will be pre-filled with your facts. Just click send!
+          </p>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
 const SuccessState = () => (
   <div className="min-h-screen bg-slate-50">
     <Header />
@@ -257,6 +340,8 @@ export default function WhatWeFound() {
   const [tip, setTip] = useState("")
   const [timedOut, setTimedOut] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveTimedOut, setSaveTimedOut] = useState(false)
   const router = useRouter()
 
   const EXPECTED_DURATION = 180 // 3 minutes maximum wait time
@@ -369,8 +454,11 @@ export default function WhatWeFound() {
     }
 
     setSubmitting(true)
+    setSaving(true)
+    setSaveTimedOut(false)
+    
     try {
-      // Call API endpoint to finalize onboarding
+      // Call API endpoint to finalize onboarding - waits up to 60 seconds for confirmation
       const response = await fetch('/api/onboarding/finalize', {
         method: 'POST',
         headers: {
@@ -382,27 +470,30 @@ export default function WhatWeFound() {
         })
       })
 
+      const result = await response.json()
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        console.error('Finalize API error:', response.status, errorData)
-        throw new Error(errorData.error || `Failed to process facts (${response.status})`)
+        // Check if it's a timeout (408)
+        if (response.status === 408 && result.timedOut) {
+          setSaveTimedOut(true)
+          setSaving(false)
+          toast.error("Saving is taking longer than expected. Please use the email option below.", {
+            duration: 10000,
+          })
+          return
+        }
+        
+        console.error('Finalize API error:', response.status, result)
+        throw new Error(result.error || `Failed to process facts (${response.status})`)
       }
 
-      const result = await response.json()
-      
-      // Show success state instead of redirecting to dashboard
+      // Success - data is confirmed saved
+      setSaving(false)
       setSubmitted(true)
-      
-      // Show appropriate message based on webhook processing
-      if (result.webhookProcessed === false) {
-        toast.success("Onboarding submitted! Processing may take a moment in the background.", {
-          duration: 5000,
-        })
-      } else {
-        toast.success("Onboarding finalized successfully!")
-      }
+      toast.success("Onboarding finalized successfully! Your data has been saved.")
     } catch (error: any) {
       console.error('Error submitting facts:', error)
+      setSaving(false)
       toast.error(error.message || "Something went wrong. Please try again.")
     } finally {
       setSubmitting(false)
@@ -439,6 +530,14 @@ export default function WhatWeFound() {
   }
 
   // Show success state after submission
+  if (saveTimedOut) {
+    return <TimeoutEmailState facts={facts} />
+  }
+
+  if (saving) {
+    return <SavingState facts={facts} />
+  }
+
   if (submitted) {
     return <SuccessState />
   }
@@ -546,10 +645,15 @@ export default function WhatWeFound() {
 
           <Button 
             onClick={() => handleSubmit(comment.trim().length === 0)}
-            disabled={submitting}
-            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium"
+            disabled={submitting || saving}
+            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium disabled:opacity-70"
           >
-            {comment.trim() ? (
+            {saving ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                Saving... Please wait
+              </>
+            ) : comment.trim() ? (
               <>
                 <Send className="w-4 h-4 mr-2" />
                 Submit Edits
