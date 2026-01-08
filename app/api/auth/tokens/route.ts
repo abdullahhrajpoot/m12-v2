@@ -88,6 +88,8 @@ export async function GET(request: NextRequest) {
         
         if (!googleClientId || !googleClientSecret) {
           console.warn('⚠️ Google OAuth credentials not configured - cannot auto-refresh tokens')
+          console.warn('GOOGLE_CLIENT_ID:', googleClientId ? 'SET' : 'MISSING')
+          console.warn('GOOGLE_CLIENT_SECRET:', googleClientSecret ? 'SET' : 'MISSING')
           // Return expired token - workflow will mark as needs_reauth
         } else {
           try {
@@ -148,17 +150,25 @@ export async function GET(request: NextRequest) {
               }
             } else {
               const errorText = await refreshResponse.text()
-              console.error('Failed to refresh token:', refreshResponse.status, errorText)
+              console.error('❌ Failed to refresh token:', refreshResponse.status, errorText)
+              console.error('Refresh token used:', tokenData.refresh_token?.substring(0, 20) + '...')
               // If refresh fails, token is invalid - user needs to re-auth
               return NextResponse.json({
                 error: 'Token expired and refresh failed. Please re-authenticate.',
                 is_expired: true,
                 needs_reauth: true,
+                refresh_error: errorText,
               }, { status: 401 })
             }
           } catch (refreshError) {
-            console.error('Error refreshing token:', refreshError)
-            // Continue to return expired token - workflow can mark as needs_reauth
+            console.error('❌ Error refreshing token:', refreshError)
+            // Return error instead of silently continuing
+            return NextResponse.json({
+              error: 'Token refresh failed. Please re-authenticate.',
+              is_expired: true,
+              needs_reauth: true,
+              refresh_error: refreshError instanceof Error ? refreshError.message : 'Unknown error',
+            }, { status: 401 })
           }
         }
       }
