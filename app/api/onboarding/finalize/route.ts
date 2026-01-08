@@ -62,10 +62,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Trigger n8n workflow to process facts and send welcome email
+    // Fire-and-forget to prevent 502 errors from blocking user response
     const n8nWebhookUrl = process.env.N8N_ONBOARDING_FINALIZE_WEBHOOK_URL ||
       'https://chungxchung.app.n8n.cloud/webhook/onboarding-finalize'
     
-    const webhookResponse = await fetch(n8nWebhookUrl, {
+    // Don't await - let webhook process in background
+    fetch(n8nWebhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -76,16 +78,20 @@ export async function POST(request: NextRequest) {
         userEdits: userEdits, // null if "It's All Good", otherwise the user's edits
       }),
     })
+    .then(async (webhookResponse) => {
+      if (!webhookResponse.ok) {
+        const errorText = await webhookResponse.text().catch(() => 'Unknown error')
+        console.error('n8n webhook returned error status:', webhookResponse.status, 'error:', errorText)
+      } else {
+        console.log('✅ Onboarding finalize webhook triggered successfully for user:', user.id)
+      }
+    })
+    .catch((webhookError) => {
+      // Log but don't fail - webhook processing is async
+      console.error('Error calling n8n onboarding finalize webhook:', webhookError)
+    })
 
-    if (!webhookResponse.ok) {
-      const errorText = await webhookResponse.text().catch(() => 'Unknown error')
-      console.error('n8n webhook returned error status:', webhookResponse.status, 'error:', errorText)
-      // Don't fail the request - webhook might be processing asynchronously
-      // Log error but return success so user can proceed
-    } else {
-      console.log('✅ Onboarding finalize webhook triggered successfully for user:', user.id)
-    }
-
+    // Return success immediately - don't wait for webhook
     return NextResponse.json({
       success: true,
       message: 'Onboarding finalized successfully',
