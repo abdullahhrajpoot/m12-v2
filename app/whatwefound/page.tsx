@@ -388,9 +388,19 @@ export default function WhatWeFound() {
         throw new Error(errorData.error || `Failed to process facts (${response.status})`)
       }
 
+      const result = await response.json()
+      
       // Show success state instead of redirecting to dashboard
       setSubmitted(true)
-      toast.success("Onboarding finalized successfully!")
+      
+      // Show appropriate message based on webhook processing
+      if (result.webhookProcessed === false) {
+        toast.success("Onboarding submitted! Processing may take a moment in the background.", {
+          duration: 5000,
+        })
+      } else {
+        toast.success("Onboarding finalized successfully!")
+      }
     } catch (error: any) {
       console.error('Error submitting facts:', error)
       toast.error(error.message || "Something went wrong. Please try again.")

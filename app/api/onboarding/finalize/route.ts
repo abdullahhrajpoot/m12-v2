@@ -62,39 +62,57 @@ export async function POST(request: NextRequest) {
     }
 
     // Trigger n8n workflow to process facts and send welcome email
-    // Fire-and-forget to prevent 502 errors from blocking user response
+    // Wait with timeout to catch immediate errors, but don't block forever
     const n8nWebhookUrl = process.env.N8N_ONBOARDING_FINALIZE_WEBHOOK_URL ||
       'https://chungxchung.app.n8n.cloud/webhook/onboarding-finalize'
     
-    // Don't await - let webhook process in background
-    fetch(n8nWebhookUrl, {
+    const webhookPayload = {
+      userId: user.id,
+      facts: facts,
+      userEdits: userEdits, // null if "It's All Good", otherwise the user's edits
+    }
+
+    // Wait for webhook with 8 second timeout to catch immediate errors
+    // If it times out, we still return success (webhook may process async)
+    const webhookPromise = fetch(n8nWebhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        userId: user.id,
-        facts: facts,
-        userEdits: userEdits, // null if "It's All Good", otherwise the user's edits
-      }),
+      body: JSON.stringify(webhookPayload),
     })
     .then(async (webhookResponse) => {
       if (!webhookResponse.ok) {
         const errorText = await webhookResponse.text().catch(() => 'Unknown error')
-        console.error('n8n webhook returned error status:', webhookResponse.status, 'error:', errorText)
-      } else {
-        console.log('✅ Onboarding finalize webhook triggered successfully for user:', user.id)
+        console.error('❌ n8n webhook returned error status:', webhookResponse.status, 'error:', errorText)
+        throw new Error(`Webhook returned ${webhookResponse.status}: ${errorText}`)
       }
+      console.log('✅ Onboarding finalize webhook triggered successfully for user:', user.id)
+      return true
     })
     .catch((webhookError) => {
-      // Log but don't fail - webhook processing is async
-      console.error('Error calling n8n onboarding finalize webhook:', webhookError)
+      console.error('❌ Error calling n8n onboarding finalize webhook:', webhookError)
+      // Still return success - webhook may process async or can be retried
+      return false
     })
 
-    // Return success immediately - don't wait for webhook
+    // Race between webhook and timeout
+    const timeoutPromise = new Promise((resolve) => {
+      setTimeout(() => {
+        console.warn('⏱️ Webhook timeout after 8 seconds - proceeding anyway (may process async)')
+        resolve(false)
+      }, 8000) // 8 second timeout
+    })
+
+    // Wait for whichever completes first
+    const webhookSuccess = await Promise.race([webhookPromise, timeoutPromise]) as boolean
+
+    // Return success regardless - webhook processing is async
+    // If webhook failed, it's logged and can be retried manually if needed
     return NextResponse.json({
       success: true,
       message: 'Onboarding finalized successfully',
+      webhookProcessed: webhookSuccess, // Indicates if webhook responded within timeout
     })
 
   } catch (error) {
