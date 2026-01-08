@@ -77,7 +77,8 @@ export async function GET(request: Request) {
     // No code - check if user has existing session (re-auth scenario)
     // This handles the case where user clicks "Sign Up With Google" but already has a session
     console.log('⚠️ No code in callback - checking for existing session')
-    const { data: { user, session }, error: userError } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     
     if (user && !userError) {
       userId = user.id
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
       
       // Try to get provider tokens from the session if available
       // Supabase may have refreshed the tokens during re-auth
-      if (session) {
+      if (session && !sessionError) {
         providerToken = session.provider_token || null
         providerRefreshToken = session.provider_refresh_token || null
         provider = user.app_metadata?.provider || 'google'
