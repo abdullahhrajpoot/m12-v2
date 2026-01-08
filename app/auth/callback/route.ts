@@ -90,70 +90,71 @@ export async function GET(request: Request) {
     }
   }
 
-  // Store OAuth provider tokens and trigger n8n workflow
+  // Store OAuth provider tokens (requires service role key)
   if (userId) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    console.log('Auth callback - userId:', userId, 'hasServiceRoleKey:', !!serviceRoleKey, 'hasProviderToken:', !!providerToken)
 
-    if (serviceRoleKey) {
+    if (serviceRoleKey && providerToken) {
       try {
         const supabaseAdmin = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           serviceRoleKey
         )
 
-        // Store tokens in oauth_tokens table for n8n to retrieve (only if we have a token)
-        if (providerToken) {
-          const { error: insertError } = await supabaseAdmin
-            .from('oauth_tokens')
-            .upsert({
-              user_id: userId,
-              provider: provider,
-              access_token: providerToken,
-              refresh_token: providerRefreshToken || null,
-              expires_at: expiresAt,
-              updated_at: new Date().toISOString(),
-            }, {
-              onConflict: 'user_id,provider' // Update if exists
-            })
+        // Store tokens in oauth_tokens table for n8n to retrieve
+        const { error: insertError } = await supabaseAdmin
+          .from('oauth_tokens')
+          .upsert({
+            user_id: userId,
+            provider: provider,
+            access_token: providerToken,
+            refresh_token: providerRefreshToken || null,
+            expires_at: expiresAt,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id,provider' // Update if exists
+          })
 
-          if (insertError) {
-            console.error('Error storing OAuth tokens:', insertError)
-          } else {
-            console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
-          }
+        if (insertError) {
+          console.error('Error storing OAuth tokens:', insertError)
+        } else {
+          console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
         }
-        
-        // Always trigger n8n onboarding workflow (for both new auth and re-auth)
-        // This ensures user status is updated from needs_reauth to active
-        const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
-          'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
-        
-        console.log('Triggering n8n webhook for user:', userId, 'email:', userEmail)
-        
-        // Call webhook - don't await to avoid blocking redirect, but handle errors
-        fetch(n8nWebhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: userId,
-            email: userEmail,
-          }),
-        }).then((response) => {
-          if (!response.ok) {
-            console.error('n8n webhook returned error status:', response.status)
-          } else {
-            console.log('n8n onboarding webhook triggered successfully for user:', userId)
-          }
-        }).catch((webhookError) => {
-          // Log but don't fail OAuth flow if webhook call fails
-          console.error('Error calling n8n onboarding webhook:', webhookError)
-        })
       } catch (tokenError) {
-        // Log but don't fail the OAuth flow if token storage fails
-        console.error('Error in OAuth callback processing:', tokenError)
+        console.error('Error in OAuth token storage:', tokenError)
       }
+    } else if (!serviceRoleKey) {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not set - skipping token storage')
+    }
+    
+    // ALWAYS trigger n8n onboarding workflow (moved outside serviceRoleKey check)
+    // This ensures user status is updated from needs_reauth to active
+    const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
+      'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
+    
+    console.log('Triggering n8n webhook for user:', userId, 'email:', userEmail, 'webhook:', n8nWebhookUrl)
+    
+    // Call webhook - await it to ensure it completes before redirect
+    try {
+      const webhookResponse = await fetch(n8nWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          email: userEmail,
+        }),
+      })
+      
+      if (!webhookResponse.ok) {
+        console.error('n8n webhook returned error status:', webhookResponse.status, await webhookResponse.text())
+      } else {
+        console.log('n8n onboarding webhook triggered successfully for user:', userId)
+      }
+    } catch (webhookError) {
+      console.error('Error calling n8n onboarding webhook:', webhookError)
     }
   }
 

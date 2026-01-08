@@ -100,3 +100,4 @@ END $$;
 COMMENT ON TABLE blacklisted_domains IS 'Domains excluded from email processing for privacy/security. Should never be cleared except through explicit domain-specific operations.';
 
 
+

@@ -36,3 +36,4 @@ mcp_n8n-mcp_n8n_get_workflow(id="vexJG6Y46lso0qKf", mode="full")
 This is a reference backup. The actual workflow state is stored in n8n Cloud.
 For a full JSON backup, fetch the workflow from n8n Cloud and save to a JSON file.
 
+
