@@ -28,25 +28,42 @@ This ensures tokens are always fresh when needed, with no delays for users or wo
 
 ## n8n Workflow Setup
 
-### Create "Token Refresh Cron" Workflow
+### ✅ Workflow Created: "Token Refresh Cron"
 
-1. **Trigger Node**: "Schedule Trigger"
-   - Schedule: Every 6 hours (or daily)
-   - Example: `0 */6 * * *` (every 6 hours)
+**Workflow ID**: `Ek0ft5PCAEv3qB5b`  
+**Status**: Created (needs to be activated)
+
+The workflow has been created in your n8n instance with the following configuration:
+
+1. **Trigger Node**: "Every 6 Hours"
+   - Schedule: Every 6 hours at minute 0
+   - Type: Schedule Trigger (v1.3)
 
 2. **HTTP Request Node**: "Refresh Tokens"
    - Method: `POST`
    - URL: `https://bippity.boo/api/auth/refresh-tokens`
    - Query Parameters:
-     - `hoursBeforeExpiry`: `24` (optional, default: 24)
-     - `provider`: `google` (optional, default: google)
+     - `hoursBeforeExpiry`: `24`
+     - `provider`: `google`
    - Headers:
      - `Authorization`: `Bearer {{$env.N8N_API_KEY}}`
-     - `Content-Type`: `application/json`
+   - Error Handling:
+     - Retry on fail: Enabled (3 tries, 1 second between)
+     - Continue on fail: Enabled
 
-3. **Response Handling** (optional):
-   - Log results
-   - Send alert if many tokens failed to refresh
+### Activate the Workflow
+
+1. Go to your n8n instance: https://chungxchung.app.n8n.cloud/
+2. Open the workflow "Token Refresh Cron" (ID: `Ek0ft5PCAEv3qB5b`)
+3. Ensure `N8N_API_KEY` is set in n8n environment variables
+4. Click "Activate" to start the scheduled runs
+
+### Response Handling (Optional Enhancement)
+
+You can add nodes to:
+- Log refresh results
+- Send alerts if many tokens failed to refresh
+- Store refresh statistics in a database
 
 ### Example n8n Workflow JSON
 
