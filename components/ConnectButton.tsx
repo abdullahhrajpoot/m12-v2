@@ -36,6 +36,11 @@ export default function ConnectButton({
       
       console.log('ConnectButton - OAuth redirect URL:', appUrl)
       
+      // Sign out first to force a fresh OAuth flow
+      // This ensures existing users go through full re-authentication
+      // which triggers the n8n webhook to update their status
+      await supabase.auth.signOut()
+      
       // Sign in with Google OAuth using Supabase Auth
       // Request scopes for Gmail, Calendar, and Tasks access
       const { data, error } = await supabase.auth.signInWithOAuth({
