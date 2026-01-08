@@ -46,8 +46,17 @@ export async function POST(request: NextRequest) {
     const { facts, userEdits } = body
 
     if (!facts || !Array.isArray(facts)) {
+      console.error('Invalid facts array:', { facts, userId: user.id })
       return NextResponse.json(
         { error: 'facts array is required' },
+        { status: 400 }
+      )
+    }
+
+    if (facts.length === 0) {
+      console.error('Empty facts array submitted:', { userId: user.id })
+      return NextResponse.json(
+        { error: 'facts array cannot be empty' },
         { status: 400 }
       )
     }
@@ -69,9 +78,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (!webhookResponse.ok) {
-      console.error('n8n webhook returned error status:', webhookResponse.status)
+      const errorText = await webhookResponse.text().catch(() => 'Unknown error')
+      console.error('n8n webhook returned error status:', webhookResponse.status, 'error:', errorText)
       // Don't fail the request - webhook might be processing asynchronously
       // Log error but return success so user can proceed
+    } else {
+      console.log('✅ Onboarding finalize webhook triggered successfully for user:', user.id)
     }
 
     return NextResponse.json({

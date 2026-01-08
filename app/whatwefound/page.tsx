@@ -362,6 +362,12 @@ export default function WhatWeFound() {
   }, []) // Run once on mount
 
   const handleSubmit = async (isAllGood = false) => {
+    // Validate facts array before submitting
+    if (!facts || facts.length === 0) {
+      toast.error("No facts to submit. Please wait for the facts to load.")
+      return
+    }
+
     setSubmitting(true)
     try {
       // Call API endpoint to finalize onboarding
@@ -377,14 +383,17 @@ export default function WhatWeFound() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to process facts')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Finalize API error:', response.status, errorData)
+        throw new Error(errorData.error || `Failed to process facts (${response.status})`)
       }
 
       // Show success state instead of redirecting to dashboard
       setSubmitted(true)
-    } catch (error) {
-      console.error(error)
-      toast.error("Something went wrong. Please try again.")
+      toast.success("Onboarding finalized successfully!")
+    } catch (error: any) {
+      console.error('Error submitting facts:', error)
+      toast.error(error.message || "Something went wrong. Please try again.")
     } finally {
       setSubmitting(false)
     }
