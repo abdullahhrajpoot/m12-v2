@@ -77,6 +77,90 @@ export async function GET(request: NextRequest) {
         ? new Date(tokenData.expires_at) < new Date()
         : false
 
+      // If token is expired and we have a refresh token, automatically refresh it
+      if (isExpired && tokenData.refresh_token && provider === 'google') {
+        // Get Google OAuth credentials from environment
+        // These should match the credentials configured in Supabase Auth
+        const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+        
+        if (!googleClientId || !googleClientSecret) {
+          console.warn('⚠️ Google OAuth credentials not configured - cannot auto-refresh tokens')
+          // Return expired token - workflow will mark as needs_reauth
+        } else {
+          try {
+            console.log('🔄 Token expired, refreshing for user:', userId)
+            
+            // Refresh Google OAuth token
+            const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                client_id: googleClientId,
+                client_secret: googleClientSecret,
+                refresh_token: tokenData.refresh_token,
+                grant_type: 'refresh_token',
+              }),
+            })
+
+            if (refreshResponse.ok) {
+              const refreshedData = await refreshResponse.json()
+              
+              // Calculate new expiration time (Google tokens typically expire in 1 hour)
+              const newExpiresAt = refreshedData.expires_in
+                ? new Date(Date.now() + refreshedData.expires_in * 1000).toISOString()
+                : null
+
+              // Update tokens in database
+              const { error: updateError } = await supabaseAdmin
+                .from('oauth_tokens')
+                .update({
+                  access_token: refreshedData.access_token,
+                  expires_at: newExpiresAt,
+                  updated_at: new Date().toISOString(),
+                  // Note: refresh_token may or may not be returned - keep existing if not provided
+                  refresh_token: refreshedData.refresh_token || tokenData.refresh_token,
+                })
+                .eq('user_id', userId)
+                .eq('provider', provider)
+
+              if (updateError) {
+                console.error('Error updating refreshed token:', updateError)
+                // Still return the expired token - workflow can handle it
+              } else {
+                console.log('✅ Token refreshed successfully for user:', userId)
+                
+                // Return the refreshed token
+                return NextResponse.json({
+                  provider: tokenData.provider,
+                  access_token: refreshedData.access_token,
+                  refresh_token: refreshedData.refresh_token || tokenData.refresh_token,
+                  expires_at: newExpiresAt,
+                  token_type: refreshedData.token_type || 'Bearer',
+                  scope: refreshedData.scope || tokenData.scope,
+                  is_expired: false,
+                  was_refreshed: true,
+                })
+              }
+            } else {
+              const errorText = await refreshResponse.text()
+              console.error('Failed to refresh token:', refreshResponse.status, errorText)
+              // If refresh fails, token is invalid - user needs to re-auth
+              return NextResponse.json({
+                error: 'Token expired and refresh failed. Please re-authenticate.',
+                is_expired: true,
+                needs_reauth: true,
+              }, { status: 401 })
+            }
+          } catch (refreshError) {
+            console.error('Error refreshing token:', refreshError)
+            // Continue to return expired token - workflow can mark as needs_reauth
+          }
+        }
+      }
+
       return NextResponse.json({
         provider: tokenData.provider,
         access_token: tokenData.access_token,
