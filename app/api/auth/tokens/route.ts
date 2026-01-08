@@ -77,7 +77,9 @@ export async function GET(request: NextRequest) {
         ? new Date(tokenData.expires_at) < new Date()
         : false
 
-      // If token is expired and we have a refresh token, automatically refresh it
+      // If token is expired and we have a refresh token, automatically refresh it (fallback)
+      // Note: Proactive refresh should be handled by cron job calling /api/auth/refresh-tokens
+      // This on-demand refresh is a safety net for tokens that weren't refreshed proactively
       if (isExpired && tokenData.refresh_token && provider === 'google') {
         // Get Google OAuth credentials from environment
         // These should match the credentials configured in Supabase Auth
