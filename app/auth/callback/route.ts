@@ -14,12 +14,14 @@ export async function GET(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 
     (requestUrl.hostname === 'bippity.boo' ? requestUrl.origin : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestUrl.origin)
 
-  console.log('Callback route:', {
+  console.log('Callback route hit:', {
     requestOrigin: requestUrl.origin,
     appUrl,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     hostname: requestUrl.hostname,
-    hasCode: !!code
+    hasCode: !!code,
+    code: code ? `${code.substring(0, 10)}...` : null,
+    allParams: Object.fromEntries(requestUrl.searchParams.entries())
   })
 
   const cookieStore = await cookies()
@@ -74,18 +76,18 @@ export async function GET(request: Request) {
   } else {
     // No code - check if user has existing session (re-auth scenario)
     // This handles the case where user clicks "Sign Up With Google" but already has a session
-    console.log('No code in callback - checking for existing session')
+    console.log('⚠️ No code in callback - checking for existing session')
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     
     if (user && !userError) {
       userId = user.id
       userEmail = user.email || null
-      console.log('Found existing session for user:', userId)
+      console.log('✅ Found existing session for user:', userId, 'email:', userEmail)
       
       // For existing sessions, we still want to trigger the n8n webhook
       // to update user status from needs_reauth to active
     } else {
-      console.log('No existing session found, redirecting to home')
+      console.error('❌ No existing session found! userError:', userError, 'redirecting to home')
       return NextResponse.redirect(new URL('/', appUrl))
     }
   }
@@ -93,7 +95,7 @@ export async function GET(request: Request) {
   // Store OAuth provider tokens (requires service role key)
   if (userId) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    console.log('Auth callback - userId:', userId, 'hasServiceRoleKey:', !!serviceRoleKey, 'hasProviderToken:', !!providerToken)
+    console.log('🔐 Auth callback processing - userId:', userId, 'email:', userEmail, 'hasServiceRoleKey:', !!serviceRoleKey, 'hasProviderToken:', !!providerToken)
 
     if (serviceRoleKey && providerToken) {
       try {
@@ -133,7 +135,7 @@ export async function GET(request: Request) {
     const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
       'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
     
-    console.log('Triggering n8n webhook for user:', userId, 'email:', userEmail, 'webhook:', n8nWebhookUrl)
+    console.log('📞 Triggering n8n webhook for user:', userId, 'email:', userEmail, 'webhook:', n8nWebhookUrl)
     
     // Call webhook - await it to ensure it completes before redirect
     try {
@@ -148,14 +150,17 @@ export async function GET(request: Request) {
         }),
       })
       
+      const responseText = await webhookResponse.text()
       if (!webhookResponse.ok) {
-        console.error('n8n webhook returned error status:', webhookResponse.status, await webhookResponse.text())
+        console.error('❌ n8n webhook returned error status:', webhookResponse.status, 'response:', responseText)
       } else {
-        console.log('n8n onboarding webhook triggered successfully for user:', userId)
+        console.log('✅ n8n onboarding webhook triggered successfully for user:', userId, 'response:', responseText.substring(0, 200))
       }
     } catch (webhookError) {
-      console.error('Error calling n8n onboarding webhook:', webhookError)
+      console.error('❌ Error calling n8n onboarding webhook:', webhookError)
     }
+  } else {
+    console.error('❌ No userId - cannot trigger webhook!')
   }
 
   // URL to redirect to after sign in process completes
