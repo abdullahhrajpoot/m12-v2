@@ -18,61 +18,91 @@ export async function GET(request: Request) {
     requestOrigin: requestUrl.origin,
     appUrl,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    hostname: requestUrl.hostname
+    hostname: requestUrl.hostname,
+    hasCode: !!code
   })
 
-  if (code) {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch {
-              // The `setAll` method was called from a Server Component.
-              // This can be ignored if you have middleware refreshing
-              // user sessions.
-            }
-          },
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-      }
-    )
-    
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
+
+  let userId: string | null = null
+  let userEmail: string | null = null
+  let providerToken: string | null = null
+  let providerRefreshToken: string | null = null
+  let provider: string = 'google'
+  let expiresAt: string | null = null
+
+  if (code) {
+    // New OAuth flow - exchange code for session
     const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
     if (error) {
       console.error('Error exchanging code for session:', error)
       return NextResponse.redirect(new URL('/?error=auth_failed', appUrl))
     }
 
-    // Store OAuth provider tokens for n8n workflows
-    // Provider tokens are only available in the session object immediately after OAuth
-    if (sessionData?.session?.provider_token && sessionData?.session?.user) {
-      const userId = sessionData.session.user.id
-      const providerToken = sessionData.session.provider_token
-      const providerRefreshToken = sessionData.session.provider_refresh_token
-      const provider = sessionData.session.user.app_metadata?.provider || 'google'
-      const expiresAt = sessionData.session.expires_at
+    if (sessionData?.session?.user) {
+      userId = sessionData.session.user.id
+      userEmail = sessionData.session.user.email || null
+      providerToken = sessionData.session.provider_token || null
+      providerRefreshToken = sessionData.session.provider_refresh_token || null
+      provider = sessionData.session.user.app_metadata?.provider || 'google'
+      expiresAt = sessionData.session.expires_at
         ? new Date(sessionData.session.expires_at * 1000).toISOString()
         : null
+    }
+  } else {
+    // No code - check if user has existing session (re-auth scenario)
+    // This handles the case where user clicks "Sign Up With Google" but already has a session
+    console.log('No code in callback - checking for existing session')
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (user && !userError) {
+      userId = user.id
+      userEmail = user.email || null
+      console.log('Found existing session for user:', userId)
+      
+      // For existing sessions, we still want to trigger the n8n webhook
+      // to update user status from needs_reauth to active
+    } else {
+      console.log('No existing session found, redirecting to home')
+      return NextResponse.redirect(new URL('/', appUrl))
+    }
+  }
 
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  // Store OAuth provider tokens and trigger n8n workflow
+  if (userId) {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-      if (serviceRoleKey && providerToken) {
-        try {
-          const supabaseAdmin = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            serviceRoleKey
-          )
+    if (serviceRoleKey) {
+      try {
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
 
-          // Store tokens in oauth_tokens table for n8n to retrieve
+        // Store tokens in oauth_tokens table for n8n to retrieve (only if we have a token)
+        if (providerToken) {
           const { error: insertError } = await supabaseAdmin
             .from('oauth_tokens')
             .upsert({
@@ -90,39 +120,39 @@ export async function GET(request: Request) {
             console.error('Error storing OAuth tokens:', insertError)
           } else {
             console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
-            
-            // Trigger n8n onboarding workflow (non-blocking - don't fail OAuth if webhook fails)
-            // Using parallelized workflow for 8-16x faster execution (30-60s vs 8 min)
-            const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
-              'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
-            
-            // Call webhook - don't await to avoid blocking redirect, but handle errors
-            fetch(n8nWebhookUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                userId: userId,
-                email: sessionData.session.user.email,
-              }),
-            }).then((response) => {
-              if (!response.ok) {
-                console.error('n8n webhook returned error status:', response.status)
-              } else {
-                console.log('n8n onboarding webhook triggered successfully for user:', userId)
-              }
-            }).catch((webhookError) => {
-              // Log but don't fail OAuth flow if webhook call fails
-              console.error('Error calling n8n onboarding webhook:', webhookError)
-            })
           }
-        } catch (tokenError) {
-          // Log but don't fail the OAuth flow if token storage fails
-          console.error('Error storing OAuth tokens:', tokenError)
         }
-      } else if (!providerToken) {
-        console.warn('No provider token found in session for user:', userId)
+        
+        // Always trigger n8n onboarding workflow (for both new auth and re-auth)
+        // This ensures user status is updated from needs_reauth to active
+        const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
+          'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
+        
+        console.log('Triggering n8n webhook for user:', userId, 'email:', userEmail)
+        
+        // Call webhook - don't await to avoid blocking redirect, but handle errors
+        fetch(n8nWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            email: userEmail,
+          }),
+        }).then((response) => {
+          if (!response.ok) {
+            console.error('n8n webhook returned error status:', response.status)
+          } else {
+            console.log('n8n onboarding webhook triggered successfully for user:', userId)
+          }
+        }).catch((webhookError) => {
+          // Log but don't fail OAuth flow if webhook call fails
+          console.error('Error calling n8n onboarding webhook:', webhookError)
+        })
+      } catch (tokenError) {
+        // Log but don't fail the OAuth flow if token storage fails
+        console.error('Error in OAuth callback processing:', tokenError)
       }
     }
   }
