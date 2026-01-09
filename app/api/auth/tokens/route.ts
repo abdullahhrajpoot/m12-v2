@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 
 /**
  * API endpoint to retrieve OAuth provider tokens for n8n workflows
@@ -17,6 +18,10 @@ import { createClient } from '@supabase/supabase-js'
  * GET /api/auth/tokens?userId=<user-id>&provider=google
  * Headers: Authorization: Bearer <N8N_API_KEY>
  */
+
+// Force dynamic rendering - this route uses request.headers and cookies
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     // Check for API key authentication (for n8n service-to-service)
@@ -241,6 +246,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error retrieving tokens:', error)
+    // Capture error in Sentry
+    Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
+      tags: { route: '/api/auth/tokens' },
+      extra: { method: 'GET' }
+    })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

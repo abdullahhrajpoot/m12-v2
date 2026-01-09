@@ -13,6 +13,10 @@ import { NextRequest, NextResponse } from 'next/server'
  * Usage:
  * GET /api/onboarding/summary
  */
+
+// Force dynamic rendering - this route uses cookies which requires dynamic execution
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     // Authenticate via session cookie
