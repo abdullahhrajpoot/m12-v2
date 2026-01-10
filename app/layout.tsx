@@ -11,9 +11,12 @@ export function generateMetadata(): Metadata {
     title: "Bippity.boo - Let something else keep track for once",
     description: "Family communication assistant that processes emails from schools and extracurricular activities to automatically create calendar events and tasks.",
     icons: {
-      icon: '/favicon.ico',
+      icon: [
+        { url: '/favicon.ico', media: '(prefers-color-scheme: light)' },
+        { url: '/bippity-boo-favicon-32x32.png', media: '(prefers-color-scheme: dark)' },
+      ],
       shortcut: '/favicon.ico',
-      apple: '/favicon-48x48.png',
+      apple: '/bippity-boo-favicon-32x32.png',
     },
     other: {
       ...Sentry.getTraceData()
