@@ -63,6 +63,10 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL('/?error=auth_failed', appUrl))
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:60',message:'After exchangeCodeForSession',data:{hasSession:!!sessionData?.session,hasUser:!!sessionData?.session?.user,hasProviderToken:!!sessionData?.session?.provider_token,hasRefreshToken:!!sessionData?.session?.provider_refresh_token,sessionKeys:sessionData?.session?Object.keys(sessionData.session):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
     if (sessionData?.session?.user) {
       userId = sessionData.session.user.id
       userEmail = sessionData.session.user.email || null
@@ -72,6 +76,10 @@ export async function GET(request: Request) {
       expiresAt = sessionData.session.expires_at
         ? new Date(sessionData.session.expires_at * 1000).toISOString()
         : null
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:75',message:'Extracted token values',data:{userId,userEmail,hasProviderToken:!!providerToken,providerTokenLength:providerToken?.length||0,hasRefreshToken:!!providerRefreshToken,provider,expiresAt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
     }
   } else {
     // No code - check if user has existing session (re-auth scenario)
@@ -115,6 +123,10 @@ export async function GET(request: Request) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     console.log('🔐 Auth callback processing - userId:', userId, 'email:', userEmail, 'hasServiceRoleKey:', !!serviceRoleKey, 'hasProviderToken:', !!providerToken)
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:116',message:'Before token storage check',data:{hasUserId:!!userId,hasServiceRoleKey:!!serviceRoleKey,hasProviderToken:!!providerToken,willStore:!!(serviceRoleKey&&providerToken)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
     if (serviceRoleKey && providerToken) {
       try {
         const supabaseAdmin = createClient(
@@ -138,14 +150,27 @@ export async function GET(request: Request) {
 
         if (insertError) {
           console.error('Error storing OAuth tokens:', insertError)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:140',message:'Token storage failed',data:{error:insertError.message,code:insertError.code,details:insertError.details},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
         } else {
           console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:142',message:'Token storage succeeded',data:{userId,provider},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
         }
       } catch (tokenError) {
         console.error('Error in OAuth token storage:', tokenError)
       }
     } else if (!serviceRoleKey) {
       console.warn('SUPABASE_SERVICE_ROLE_KEY not set - skipping token storage')
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:148',message:'Service role key missing',data:{hasProviderToken:!!providerToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+    } else if (!providerToken) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:152',message:'Provider token missing from session',data:{hasServiceRoleKey:!!serviceRoleKey,userId,userEmail},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
     }
     
     // ALWAYS trigger n8n onboarding workflow (moved outside serviceRoleKey check)
