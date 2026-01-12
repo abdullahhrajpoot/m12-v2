@@ -173,6 +173,32 @@ export async function GET(request: Request) {
       // #endregion
     }
     
+    // Verify OAuth scopes after token storage
+    // If missing scopes, redirect to missing-permissions page
+    if (providerToken && provider === 'google' && userId) {
+      try {
+        const verifyResponse = await fetch(`${appUrl}/api/auth/verify-scopes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: providerToken })
+        })
+        
+        if (verifyResponse.ok) {
+          const { hasAllScopes, missingScopes } = await verifyResponse.json()
+          
+          if (!hasAllScopes && missingScopes && missingScopes.length > 0) {
+            console.log('⚠️ Missing OAuth scopes detected:', missingScopes)
+            const missingParam = encodeURIComponent(missingScopes.join(','))
+            return NextResponse.redirect(new URL(`/auth/missing-permissions?missing=${missingParam}`, appUrl))
+          }
+        }
+      } catch (scopeError) {
+        // Fail open - if scope verification fails, continue with normal flow
+        // This prevents blocking legitimate users due to verification errors
+        console.warn('⚠️ Scope verification failed, continuing with flow:', scopeError)
+      }
+    }
+    
     // ALWAYS trigger n8n onboarding workflow (moved outside serviceRoleKey check)
     // This ensures user status is updated from needs_reauth to active
     const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
