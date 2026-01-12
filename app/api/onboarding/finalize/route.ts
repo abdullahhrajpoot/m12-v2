@@ -53,10 +53,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (facts.length === 0) {
-      console.error('Empty facts array submitted:', { userId: user.id })
+    // Allow empty facts ONLY if userEdits is provided (manual family info entry from timeout state)
+    if (facts.length === 0 && !userEdits?.trim()) {
+      console.error('Empty facts array submitted without userEdits:', { userId: user.id })
       return NextResponse.json(
-        { error: 'facts array cannot be empty' },
+        { error: 'Either facts or userEdits must be provided' },
         { status: 400 }
       )
     }
