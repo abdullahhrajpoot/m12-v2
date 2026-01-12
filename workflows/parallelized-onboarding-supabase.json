@@ -186,38 +186,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format data for Supabase UPSERT and prepare JSON body string\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  if (!item.json || !item.json.userId) continue;\n  \n  const payload = {\n    user_id: item.json.userId,\n    summary_sentences: item.json.sentences || []\n  };\n  \n  results.push({\n    json: {\n      ...item.json,\n      user_id: payload.user_id,\n      summary_sentences: payload.summary_sentences,\n      _bodyJson: JSON.stringify(payload)\n    }\n  });\n}\n\nreturn results;"
-      },
-      "name": "Format for Upsert",
-      "id": "format-upsert",
-      "typeVersion": 2,
-      "position": [2560, -176],
-      "type": "n8n-nodes-base.code",
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "url": "https://fvjmzvvcyxsvstlhenex.supabase.co/rest/v1/onboarding_summaries",
-        "method": "POST",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "apikey", "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY || $vars.SUPABASE_ANON_KEY }}" },
-            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY || $vars.SUPABASE_ANON_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "resolution=merge-duplicates" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "raw",
-        "body": "={{ $json._bodyJson || JSON.stringify({ user_id: $json.user_id, summary_sentences: $json.summary_sentences }) }}",
-        "options": {}
+        "jsCode": "// Upsert onboarding summaries directly using Supabase REST API\nconst items = $input.all();\nconst results = [];\n\n// Get service role key from environment (fallback to anon key)\nconst serviceRoleKey = $vars.SUPABASE_SERVICE_ROLE_KEY || $vars.SUPABASE_ANON_KEY || '';\nconst supabaseUrl = 'https://fvjmzvvcyxsvstlhenex.supabase.co';\n\nfor (const item of items) {\n  if (!item.json || !item.json.userId) continue;\n  \n  const payload = {\n    user_id: item.json.userId,\n    summary_sentences: item.json.sentences || []\n  };\n  \n  try {\n    // Make HTTP request to Supabase REST API for UPSERT\n    const response = await fetch(`${supabaseUrl}/rest/v1/onboarding_summaries`, {\n      method: 'POST',\n      headers: {\n        'apikey': serviceRoleKey,\n        'Authorization': `Bearer ${serviceRoleKey}`,\n        'Content-Type': 'application/json',\n        'Prefer': 'resolution=merge-duplicates'\n      },\n      body: JSON.stringify(payload)\n    });\n    \n    const responseData = await response.json();\n    \n    if (!response.ok) {\n      results.push({\n        json: {\n          ...item.json,\n          error: responseData.message || `HTTP ${response.status}`,\n          statusCode: response.status\n        }\n      });\n    } else {\n      results.push({\n        json: {\n          ...item.json,\n          success: true,\n          saved: true,\n          response: responseData\n        }\n      });\n    }\n  } catch (error) {\n    results.push({\n      json: {\n        ...item.json,\n        error: error.message || 'Unknown error',\n        saved: false\n      }\n    });\n  }\n}\n\nreturn results;"
       },
       "name": "Upsert Onboarding Summaries",
       "id": "upsert-summaries",
-      "typeVersion": 4.3,
-      "position": [2704, -176],
-      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [2624, -176],
+      "type": "n8n-nodes-base.code",
       "alwaysOutputData": true
     },
     {
@@ -503,8 +478,7 @@
     "Pull Discovered Emails": { "main": [[{ "node": "Convert To Readable Email", "type": "main", "index": 0 }]] },
     "Convert To Readable Email": { "main": [[{ "node": "Filter Out Blank Emails", "type": "main", "index": 0 }]] },
     "OpenAI Chat Model GPT-4o": { "ai_languageModel": [[{ "node": "Extraction System", "type": "ai_languageModel", "index": 0 }]] },
-    "Parse Sentences Array": { "main": [[{ "node": "Format for Upsert", "type": "main", "index": 0 }]] },
-    "Format for Upsert": { "main": [[{ "node": "Upsert Onboarding Summaries", "type": "main", "index": 0 }]] },
+    "Parse Sentences Array": { "main": [[{ "node": "Upsert Onboarding Summaries", "type": "main", "index": 0 }]] },
     "Filter Out Blank Emails": { "main": [[{ "node": "Extraction System", "type": "main", "index": 0 }]] },
     "Extraction System": { "main": [[{ "node": "Aggregate Extractions", "type": "main", "index": 0 }]] },
     "Consolidator System": { "main": [[{ "node": "Parse Sentences Array", "type": "main", "index": 0 }]] },
