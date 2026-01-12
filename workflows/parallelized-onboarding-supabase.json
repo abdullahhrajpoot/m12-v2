@@ -186,7 +186,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format data for Supabase UPSERT\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  if (!item.json || !item.json.userId) continue;\n  \n  results.push({\n    json: {\n      user_id: item.json.userId,\n      summary_sentences: item.json.sentences || []\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// Format data for Supabase UPSERT and prepare JSON body string\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  if (!item.json || !item.json.userId) continue;\n  \n  const payload = {\n    user_id: item.json.userId,\n    summary_sentences: item.json.sentences || []\n  };\n  \n  results.push({\n    json: {\n      ...item.json,\n      user_id: payload.user_id,\n      summary_sentences: payload.summary_sentences,\n      _bodyJson: JSON.stringify(payload)\n    }\n  });\n}\n\nreturn results;"
       },
       "name": "Format for Upsert",
       "id": "format-upsert",
@@ -210,7 +210,7 @@
         },
         "sendBody": true,
         "specifyBody": "raw",
-        "body": "={{ JSON.stringify({ user_id: $json.user_id, summary_sentences: $json.summary_sentences }) }}",
+        "body": "={{ $json._bodyJson || JSON.stringify({ user_id: $json.user_id, summary_sentences: $json.summary_sentences }) }}",
         "options": {}
       },
       "name": "Upsert Onboarding Summaries",
