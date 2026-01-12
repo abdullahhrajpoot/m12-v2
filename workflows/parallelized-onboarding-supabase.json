@@ -186,56 +186,28 @@
     },
     {
       "parameters": {
-        "operation": "update",
-        "tableId": "onboarding_summaries",
-        "matchType": "allFilters",
-        "filters": { "conditions": [{ "keyName": "user_id", "condition": "eq", "keyValue": "={{ $json.userId }}" }] },
-        "fieldsUi": { "fieldValues": [{ "fieldId": "summary_sentences", "fieldValue": "={{ $json.sentences }}" }] }
-      },
-      "name": "Save Onboarding Summaries",
-      "id": "save-summaries",
-      "typeVersion": 1,
-      "position": [2624, -176],
-      "type": "n8n-nodes-base.supabase",
-      "alwaysOutputData": true,
-      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
-          "conditions": [{ "id": "check-item-count", "leftValue": "={{ $json.itemCount }}", "rightValue": 0, "operator": { "type": "number", "operation": "equals" } }],
-          "combinator": "and"
+        "url": "https://fvjmzvvcyxsvstlhenex.supabase.co/rest/v1/onboarding_summaries",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY || $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY || $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates" }
+          ]
         },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify({ user_id: $json.userId, summary_sentences: $json.sentences }) }}",
         "options": {}
       },
-      "name": "Check Update Result",
-      "id": "check-update",
-      "typeVersion": 2.3,
-      "position": [3008, 16],
-      "type": "n8n-nodes-base.if",
+      "name": "Upsert Onboarding Summaries",
+      "id": "upsert-summaries",
+      "typeVersion": 4.3,
+      "position": [2624, -176],
+      "type": "n8n-nodes-base.httpRequest",
       "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "operation": "create",
-        "tableId": "onboarding_summaries",
-        "fieldsUi": {
-          "fieldValues": [
-            { "fieldId": "user_id", "fieldValue": "={{ $json.userId }}" },
-            { "fieldId": "summary_sentences", "fieldValue": "={{ $json.sentences }}" }
-          ]
-        }
-      },
-      "name": "Insert Onboarding Summaries",
-      "id": "insert-summaries",
-      "typeVersion": 1,
-      "position": [3184, 400],
-      "type": "n8n-nodes-base.supabase",
-      "alwaysOutputData": true,
-      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
-      "continueOnFail": true
     },
     {
       "parameters": {
@@ -300,17 +272,6 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [2064, 512],
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "jsCode": "// Preserve original input data (userId, sentences) through UPDATE operation\n// Since Supabase UPDATE returns empty json: {} even when successful, we can't reliably\n// determine if UPDATE found records. Always assume itemCount = 0 so INSERT runs.\n// If a record already exists, INSERT will fail (handled by continueOnFail), but\n// UPDATE should have already updated it. This ensures records are always saved.\n\nconst items = $input.all();\nconst result = [];\n\n// Get original data from Parse Sentences Array node using robust $() syntax\nlet originalData = null;\ntry {\n  const parseNodeData = $('Parse Sentences Array').first().json;\n  if (parseNodeData) {\n    originalData = {\n      userId: parseNodeData.userId,\n      sentences: parseNodeData.sentences\n    };\n  }\n} catch (e) {\n  // If $() fails, try to extract from input (shouldn't happen, but fallback)\n  if (items.length > 0 && items[0].json) {\n    const item = items[0].json;\n    originalData = {\n      userId: item.user_id || item.userId,\n      sentences: item.summary_sentences || item.sentences\n    };\n  }\n}\n\n// Always assume UPDATE found 0 records (itemCount = 0) so INSERT always runs\n// This is necessary because UPDATE returns empty items even when successful\n// If record exists, INSERT will fail gracefully, but UPDATE should have already updated it\nconst itemCount = 0;\n\n// If we have originalData, output it with itemCount = 0 to trigger INSERT\nif (originalData) {\n  result.push({\n    json: {\n      itemCount: itemCount,\n      userId: originalData.userId,\n      sentences: originalData.sentences\n    }\n  });\n} else {\n  // Fallback: output empty data if we couldn't get original data\n  result.push({\n    json: {\n      itemCount: 0,\n      userId: null,\n      sentences: null\n    }\n  });\n}\n\nreturn result;"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2832, -176],
-      "id": "40c72092-7cad-4002-a3fa-2451eee8e427",
-      "name": "Preserve Data for Insert",
       "alwaysOutputData": true
     },
     {
@@ -531,14 +492,12 @@
     "Pull Discovered Emails": { "main": [[{ "node": "Convert To Readable Email", "type": "main", "index": 0 }]] },
     "Convert To Readable Email": { "main": [[{ "node": "Filter Out Blank Emails", "type": "main", "index": 0 }]] },
     "OpenAI Chat Model GPT-4o": { "ai_languageModel": [[{ "node": "Extraction System", "type": "ai_languageModel", "index": 0 }]] },
-    "Parse Sentences Array": { "main": [[{ "node": "Save Onboarding Summaries", "type": "main", "index": 0 }]] },
-    "Save Onboarding Summaries": { "main": [[{ "node": "Preserve Data for Insert", "type": "main", "index": 0 }]] },
+    "Parse Sentences Array": { "main": [[{ "node": "Upsert Onboarding Summaries", "type": "main", "index": 0 }]] },
     "Filter Out Blank Emails": { "main": [[{ "node": "Extraction System", "type": "main", "index": 0 }]] },
     "Extraction System": { "main": [[{ "node": "Aggregate Extractions", "type": "main", "index": 0 }]] },
     "Consolidator System": { "main": [[{ "node": "Parse Sentences Array", "type": "main", "index": 0 }]] },
     "OpenAI Chat Model": { "ai_languageModel": [[{ "node": "Consolidator System", "type": "ai_languageModel", "index": 0 }]] },
     "Aggregate Extractions": { "main": [[{ "node": "Consolidator System", "type": "main", "index": 0 }]] },
-    "Preserve Data for Insert": { "main": [[{ "node": "Check Update Result", "type": "main", "index": 0 }]] },
     "Create User": { "main": [[{ "node": "Get Token from Supabase", "type": "main", "index": 0 }]] },
     "Select 60 Emails": { "main": [[{ "node": "Add Token To Items", "type": "main", "index": 0 }]] },
     "Check if User Exists": { "main": [[{ "node": "Check User Count", "type": "main", "index": 0 }]] },
@@ -548,7 +507,6 @@
     "Fetch Message Metadata": { "main": [[{ "node": "Aggregate Metadata", "type": "main", "index": 0 }]] },
     "Aggregate Metadata": { "main": [[{ "node": "Filter and Score Emails", "type": "main", "index": 0 }]] },
     "Filter and Score Emails": { "main": [[{ "node": "Select 60 Emails", "type": "main", "index": 0 }]] },
-    "Check Update Result": { "main": [[{ "node": "Insert Onboarding Summaries", "type": "main", "index": 0 }]] },
     "Get Token from Supabase": { "main": [[{ "node": "Search Gmail - Recent", "type": "main", "index": 0 }, { "node": "Search Gmail - BackToSchool", "type": "main", "index": 0 }, { "node": "Search Gmail - Fall", "type": "main", "index": 0 }, { "node": "Search Gmail - Winter", "type": "main", "index": 0 }, { "node": "Search Gmail - Spring", "type": "main", "index": 0 }]] },
     "Search Gmail - Recent": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
     "Search Gmail - BackToSchool": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
