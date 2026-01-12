@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { AlertCircle, CheckCircle2, Mail, Calendar, CheckSquare, ArrowRight, Info } from 'lucide-react'
@@ -62,7 +62,7 @@ const PERMISSIONS: Permission[] = [
   }
 ]
 
-export default function MissingPermissionsPage() {
+function MissingPermissionsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [missingScopes, setMissingScopes] = useState<string[]>([])
@@ -291,5 +291,23 @@ export default function MissingPermissionsPage() {
         </motion.div>
       </div>
     </div>
+  )
+}
+
+export default function MissingPermissionsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center p-4 bg-amber-100 rounded-full mb-6">
+            <AlertCircle className="w-8 h-8 text-amber-600" />
+          </div>
+          <h1 className="text-4xl font-bold text-slate-900 mb-4">Loading...</h1>
+          <p className="text-lg text-slate-600">Checking permissions...</p>
+        </div>
+      </div>
+    }>
+      <MissingPermissionsContent />
+    </Suspense>
   )
 }
