@@ -186,6 +186,17 @@
     },
     {
       "parameters": {
+        "jsCode": "// Format data for Supabase UPSERT\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  if (!item.json || !item.json.userId) continue;\n  \n  results.push({\n    json: {\n      user_id: item.json.userId,\n      summary_sentences: item.json.sentences || []\n    }\n  });\n}\n\nreturn results;"
+      },
+      "name": "Format for Upsert",
+      "id": "format-upsert",
+      "typeVersion": 2,
+      "position": [2560, -176],
+      "type": "n8n-nodes-base.code",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
         "url": "https://fvjmzvvcyxsvstlhenex.supabase.co/rest/v1/onboarding_summaries",
         "method": "POST",
         "sendHeaders": true,
@@ -198,14 +209,14 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "body": "={{ JSON.stringify({ user_id: $json.userId, summary_sentences: $json.sentences }) }}",
+        "specifyBody": "raw",
+        "body": "={{ JSON.stringify({ user_id: $json.user_id, summary_sentences: $json.summary_sentences }) }}",
         "options": {}
       },
       "name": "Upsert Onboarding Summaries",
       "id": "upsert-summaries",
       "typeVersion": 4.3,
-      "position": [2624, -176],
+      "position": [2704, -176],
       "type": "n8n-nodes-base.httpRequest",
       "alwaysOutputData": true
     },
@@ -492,7 +503,8 @@
     "Pull Discovered Emails": { "main": [[{ "node": "Convert To Readable Email", "type": "main", "index": 0 }]] },
     "Convert To Readable Email": { "main": [[{ "node": "Filter Out Blank Emails", "type": "main", "index": 0 }]] },
     "OpenAI Chat Model GPT-4o": { "ai_languageModel": [[{ "node": "Extraction System", "type": "ai_languageModel", "index": 0 }]] },
-    "Parse Sentences Array": { "main": [[{ "node": "Upsert Onboarding Summaries", "type": "main", "index": 0 }]] },
+    "Parse Sentences Array": { "main": [[{ "node": "Format for Upsert", "type": "main", "index": 0 }]] },
+    "Format for Upsert": { "main": [[{ "node": "Upsert Onboarding Summaries", "type": "main", "index": 0 }]] },
     "Filter Out Blank Emails": { "main": [[{ "node": "Extraction System", "type": "main", "index": 0 }]] },
     "Extraction System": { "main": [[{ "node": "Aggregate Extractions", "type": "main", "index": 0 }]] },
     "Consolidator System": { "main": [[{ "node": "Parse Sentences Array", "type": "main", "index": 0 }]] },
