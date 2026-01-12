@@ -44,14 +44,28 @@ This directory contains visual guides to help users understand which checkboxes 
 - Add visual indicators (arrows, highlights, numbers)
 - Export as GIF or PNG
 
+## Recommended GIF Size
+
+**Recommended:** `1200px × 675px` (16:9 aspect ratio)
+- Maintains quality from your original 1816×1022 video
+- Good for both desktop and mobile (responsive design handles scaling)
+- Target file size: 2-3 MB (optimized)
+
+**Alternative sizes:**
+- `1000px × 562px` - Balanced quality/size
+- `800px × 450px` - Faster loading, mobile-optimized
+
+See `GIF_OPTIMIZATION_GUIDE.md` for detailed instructions.
+
 ## Current Status
 
 **Placeholder**: The page includes a fallback message if the visual guide is not found.
 
 **Next Steps**:
-1. Create or obtain the visual guide asset
-2. Place it in this directory as `oauth-consent-screen.gif` (or update the page to use static images)
-3. Test that it displays correctly on the missing-permissions page
+1. Export your video as GIF at 1200×675 (or 1000×562)
+2. Optimize to keep file size under 3 MB
+3. Place it in this directory as `oauth-consent-screen.gif`
+4. Test that it displays correctly on the missing-permissions page
 
 ## File Naming
 
