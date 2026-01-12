@@ -1,0 +1,695 @@
+{
+  "name": "Bippity - Email Command Processor MultiTenant",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "execute-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-600, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten input and ensure we have unified_event_id\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const json = item.json || {};\n  \n  // Get unified_event_id from input (could be direct or nested)\n  const unifiedEventId = json.unified_event_id || json.id || json.body?.unified_event_id;\n  \n  if (!unifiedEventId) {\n    // If no ID, try to find it in all input items\n    for (const inputItem of items) {\n      if (inputItem.json?.unified_event_id) {\n        results.push({\n          json: {\n            unified_event_id: inputItem.json.unified_event_id,\n            user_id: inputItem.json.user_id || json.user_id,\n            email_content: inputItem.json.email_content || json.email_content || json.content,\n            subject: inputItem.json.subject || json.subject,\n            sender_email: inputItem.json.sender_email || json.sender_email\n          }\n        });\n        break;\n      }\n    }\n    if (results.length === 0) {\n      results.push({\n        json: {\n          error: 'No unified_event_id provided',\n          ...json\n        }\n      });\n    }\n  } else {\n    results.push({\n      json: {\n        unified_event_id: unifiedEventId,\n        user_id: json.user_id || json.body?.user_id,\n        email_content: json.email_content || json.content || json.body?.email_content,\n        subject: json.subject || json.body?.subject,\n        sender_email: json.sender_email || json.body?.sender_email\n      }\n    });\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { error: 'No input data' } }];"
+      },
+      "id": "flatten-input",
+      "name": "Flatten Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-400, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-has-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-input-valid",
+      "name": "Input Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [-200, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "unified_events",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.unified_event_id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-unified-event",
+      "name": "Get Unified Event",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "unified_events",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "processing_status",
+              "fieldValue": "processing"
+            }
+          ]
+        }
+      },
+      "id": "update-status-processing",
+      "name": "Update Status to Processing",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [200, 0],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a command parser for Bippity.boo, a family communication assistant.\n\nUsers send emails to fgm@gmail.com with commands to:\n1. Manage family facts (create, update, delete, list/search)\n2. Manage calendar events (create, update, search, get by date)\n3. Manage tasks (create, update, complete, delete, search)\n\nParse this email and extract commands. Be flexible with natural language.\n\nEmail from: {{ $json.sender_email }}\nSubject: {{ $json.subject }}\nBody:\n{{ $json.content }}\n\nOutput ONLY valid JSON in this exact format (no markdown, no code blocks, just the JSON object):\n{\n  \"command_type\": \"family_facts\" | \"calendar\" | \"tasks\" | \"mixed\",\n  \"operations\": [\n    {\n      \"operation\": \"create\" | \"read\" | \"update\" | \"delete\" | \"search\",\n      \"entity\": \"family_fact\" | \"calendar_event\" | \"task\",\n      \"parameters\": {},\n      \"confidence\": 0.95,\n      \"original_text\": \"excerpt from email\"\n    }\n  ],\n  \"requires_confirmation\": false\n}\n\nIf unclear, set confidence low (<0.7) and return empty operations array.",
+        "options": {
+          "systemMessage": "You are a precise command parser. Output ONLY valid JSON. No explanations. No markdown code blocks. Just the JSON object. If you cannot parse a command, return {\"command_type\": \"unknown\", \"operations\": [], \"requires_confirmation\": false}."
+        },
+        "agent": "openAiFunctionsAgent",
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o"
+        },
+        "tools": {
+          "values": []
+        }
+      },
+      "id": "parse-command-ai",
+      "name": "Parse Command with AI",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [400, 0],
+      "alwaysOutputData": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "D1MyVMAJ9zLNahg3",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o"
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0.3
+        }
+      },
+      "id": "gpt4o-model",
+      "name": "GPT-4o Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [400, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "D1MyVMAJ9zLNahg3",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI output as JSON\nconst items = $input.all();\nconst eventData = $('Get Unified Event').first().json;\nconst results = [];\n\nfor (const item of items) {\n  try {\n    let parsed = {};\n    const output = item.json?.output || item.json?.text || item.json?.response || '';\n    \n    // Try to extract JSON from AI output (may be wrapped in markdown code blocks)\n    let jsonStr = String(output).trim();\n    \n    // Remove markdown code blocks if present\n    if (jsonStr.includes('```')) {\n      const match = jsonStr.match(/```(?:json)?\\n([\\s\\S]*?)\\n```/);\n      if (match && match[1]) {\n        jsonStr = match[1].trim();\n      } else {\n        // Try without language tag\n        const match2 = jsonStr.match(/```\\n([\\s\\S]*?)\\n```/);\n        if (match2 && match2[1]) {\n          jsonStr = match2[1].trim();\n        }\n      }\n    }\n    \n    // Remove leading/trailing whitespace and try to parse\n    jsonStr = jsonStr.trim();\n    \n    // Ensure it starts with { or [\n    if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {\n      // Try to find JSON in the string\n      const jsonMatch = jsonStr.match(/({[\\s\\S]*})/);\n      if (jsonMatch) {\n        jsonStr = jsonMatch[1];\n      }\n    }\n    \n    parsed = JSON.parse(jsonStr);\n    \n    // Merge with original event data\n    results.push({\n      json: {\n        ...eventData,\n        parsed_commands: parsed,\n        command_type: parsed.command_type || 'unknown',\n        operations: parsed.operations || [],\n        requires_confirmation: parsed.requires_confirmation || false\n      }\n    });\n  } catch (e) {\n    // If parsing fails, treat as error\n    results.push({\n      json: {\n        ...eventData,\n        parsed_commands: { error: String(e), raw_output: item.json?.output || item.json?.text || '' },\n        command_type: 'error',\n        operations: [],\n        parse_error: true\n      }\n    });\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { ...eventData, error: 'No AI output' } }];"
+      },
+      "id": "parse-json",
+      "name": "Parse AI Output JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-parse-error",
+              "leftValue": "={{ $json.parse_error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-parse-success",
+      "name": "Parse Successful?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [800, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "options": {
+          "caseSensitive": false,
+          "fallbackOutput": "output_0"
+        },
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-family-facts",
+                    "leftValue": "={{ $json.command_type }}",
+                    "rightValue": "family_facts",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "family_facts"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-calendar",
+                    "leftValue": "={{ $json.command_type }}",
+                    "rightValue": "calendar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "calendar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-tasks",
+                    "leftValue": "={{ $json.command_type }}",
+                    "rightValue": "tasks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tasks"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-mixed",
+                    "leftValue": "={{ $json.command_type }}",
+                    "rightValue": "mixed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "mixed"
+            }
+          ]
+        }
+      },
+      "id": "route-command",
+      "name": "Route by Command Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [1000, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle family facts operations\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const operations = item.json.operations || [];\n  const userId = item.json.user_id;\n  \n  // Process each operation\n  for (const op of operations) {\n    if (op.entity === 'family_fact') {\n      results.push({\n        json: {\n          ...item.json,\n          operation_type: op.operation,\n          operation_params: op.parameters || {},\n          operation_entity: op.entity,\n          operation_confidence: op.confidence || 0,\n          original_text: op.original_text || ''\n        }\n      });\n    }\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { ...items[0]?.json, error: 'No family_fact operations found' } }];"
+      },
+      "id": "family-facts-handler",
+      "name": "Family Facts Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, -200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "options": {
+          "caseSensitive": false,
+          "fallbackOutput": "output_0"
+        },
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-create",
+                    "leftValue": "={{ $json.operation_type }}",
+                    "rightValue": "create",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "create"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-read",
+                    "leftValue": "={{ $json.operation_type }}",
+                    "rightValue": "read",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "read"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-update",
+                    "leftValue": "={{ $json.operation_type }}",
+                    "rightValue": "update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "update"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 3,
+                  "leftValue": "",
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "check-delete",
+                    "leftValue": "={{ $json.operation_type }}",
+                    "rightValue": "delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "delete"
+            }
+          ]
+        }
+      },
+      "id": "route-facts-operation",
+      "name": "Route Facts Operation",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [1400, -200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "family_facts",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldId": "fact_text",
+              "fieldValue": "={{ $json.operation_params.fact_text || $json.operation_params.text || $json.original_text }}"
+            },
+            {
+              "fieldId": "fact_type",
+              "fieldValue": "={{ $json.operation_params.fact_type || 'general' }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "email_command"
+            }
+          ]
+        }
+      },
+      "id": "create-fact",
+      "name": "Create Family Fact",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, -400],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "family_facts",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "id": "read-facts",
+      "name": "Read Family Facts",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, -200],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format response for confirmation email\nconst items = $input.all();\nconst eventData = $('Get Unified Event').first().json;\nconst results = [];\n\n// Collect all operation results\nconst operationResults = [];\n\nfor (const item of items) {\n  if (item.json && !item.json.error) {\n    operationResults.push({\n      success: true,\n      operation: item.json.operation_type || 'unknown',\n      entity: item.json.operation_entity || 'unknown',\n      result: item.json.id ? `Created/Updated ID: ${item.json.id}` : 'Completed',\n      data: item.json\n    });\n  } else {\n    operationResults.push({\n      success: false,\n      operation: item.json?.operation_type || 'unknown',\n      error: item.json?.error || 'Unknown error'\n    });\n  }\n}\n\nresults.push({\n  json: {\n    ...eventData,\n    operation_results: operationResults,\n    processing_status: operationResults.every(r => r.success) ? 'completed' : 'error'\n  }\n});\n\nreturn results;"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, -200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create confirmation email body for Gmail send node\nconst items = $input.all();\nconst eventData = $('Get Unified Event').first().json;\nconst emailContent = eventData.content || '';\nconst subject = eventData.subject || 'Your email to Bippity.boo';\nconst senderEmail = eventData.sender_email || '';\n\n// Build email body with operation results (HTML format)\nlet emailBody = `Hi,<br><br>I've processed your email. Here's what I did:<br><br>`;\n\nconst operations = items[0]?.json?.operation_results || [];\n\nif (operations.length === 0) {\n  emailBody += `❌ I couldn't understand your command. Please try again with clearer instructions.<br><br>Examples:<br>- \"Add fact: Cora goes to Lincoln Elementary\"<br>- \"Show my calendar for next week\"<br>- \"Create task: Buy soccer cleats due Friday\"<br>`;\n} else {\n  for (const op of operations) {\n    if (op.success) {\n      emailBody += `✅ ${op.operation} ${op.entity}: ${op.result || 'Completed'}<br>`;\n    } else {\n      emailBody += `❌ Failed to ${op.operation} ${op.entity}: ${op.error || 'Unknown error'}<br>`;\n    }\n  }\n}\n\nemailBody += `<br>View your <a href=\"https://bippity.boo/dashboard\">dashboard</a><br><br>- Your Fairy God Mother 🤖<br><br><hr><br><strong>Original message:</strong><br>Subject: ${subject}<br>${emailContent.substring(0, 500).replace(/\\n/g, '<br>')}`;\n\nreturn [{\n  json: {\n    to_email: senderEmail,\n    subject: `Re: ${subject}`,\n    email_body: emailBody\n  }\n}];"
+      },
+      "id": "prepare-confirmation-email",
+      "name": "Prepare Confirmation Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, -200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $json.to_email }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.email_body }}",
+        "options": {}
+      },
+      "id": "send-confirmation-email",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [2400, -200],
+      "alwaysOutputData": true,
+      "continueOnFail": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "FGM Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "unified_events",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Get Unified Event').first().json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "processing_status",
+              "fieldValue": "={{ $('Format Response').first().json.processing_status || 'completed' }}"
+            }
+          ]
+        }
+      },
+      "id": "update-final-status",
+      "name": "Update Final Status",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2600, -200],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return processing status for poller workflow\nconst items = $input.all();\nconst eventData = $('Get Unified Event').first().json;\nconst formatData = $('Format Response').first().json;\n\nreturn [{\n  json: {\n    unified_event_id: eventData.id,\n    processing_status: formatData?.processing_status || 'completed',\n    operation_results: formatData?.operation_results || [],\n    success: formatData?.processing_status === 'completed'\n  }\n}];"
+      },
+      "id": "return-status",
+      "name": "Return Processing Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2800, -200],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "Flatten Input", "type": "main", "index": 0 }]]
+    },
+    "Flatten Input": {
+      "main": [[{ "node": "Input Valid?", "type": "main", "index": 0 }]]
+    },
+    "Input Valid?": {
+      "main": [
+        [{ "node": "Get Unified Event", "type": "main", "index": 0 }],
+        [{ "node": "Return Processing Status", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Unified Event": {
+      "main": [[{ "node": "Update Status to Processing", "type": "main", "index": 0 }]]
+    },
+    "Update Status to Processing": {
+      "main": [[{ "node": "Parse Command with AI", "type": "main", "index": 0 }]]
+    },
+    "Parse Command with AI": {
+      "main": [[{ "node": "Parse AI Output JSON", "type": "main", "index": 0 }]],
+      "ai_languageModel": [[{ "node": "GPT-4o Model", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Parse AI Output JSON": {
+      "main": [[{ "node": "Parse Successful?", "type": "main", "index": 0 }]]
+    },
+    "Parse Successful?": {
+      "main": [
+        [{ "node": "Route by Command Type", "type": "main", "index": 0 }],
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route by Command Type": {
+      "main": [
+        [{ "node": "Family Facts Handler", "type": "main", "index": 0 }],
+        [{ "node": "Format Response", "type": "main", "index": 0 }],
+        [{ "node": "Format Response", "type": "main", "index": 0 }],
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Family Facts Handler": {
+      "main": [[{ "node": "Route Facts Operation", "type": "main", "index": 0 }]]
+    },
+    "Route Facts Operation": {
+      "main": [
+        [{ "node": "Create Family Fact", "type": "main", "index": 0 }],
+        [{ "node": "Read Family Facts", "type": "main", "index": 0 }],
+        [{ "node": "Format Response", "type": "main", "index": 0 }],
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Family Fact": {
+      "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]]
+    },
+    "Read Family Facts": {
+      "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]]
+    },
+    "Format Response": {
+      "main": [[{ "node": "Prepare Confirmation Email", "type": "main", "index": 0 }]]
+    },
+    "Prepare Confirmation Email": {
+      "main": [[{ "node": "Send Confirmation Email", "type": "main", "index": 0 }]]
+    },
+    "Send Confirmation Email": {
+      "main": [[{ "node": "Update Final Status", "type": "main", "index": 0 }]]
+    },
+    "Update Final Status": {
+      "main": [[{ "node": "Return Processing Status", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  }
+}

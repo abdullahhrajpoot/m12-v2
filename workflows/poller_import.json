@@ -1,0 +1,675 @@
+{
+  "name": "Bippity - Gmail Command Poller MultiTenant",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://bippity.boo/api/auth/tokens",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{ $vars.FGM_USER_ID }}"
+            },
+            {
+              "name": "provider",
+              "value": "google"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.N8N_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-token",
+      "name": "Get Gmail Token for fgm@gmail.com",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -400,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "to:fgm@gmail.com -label:bippity-processed is:unread"
+            },
+            {
+              "name": "maxResults",
+              "value": "50"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "search-gmail",
+      "name": "Search Gmail for Commands",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -200,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "messages",
+        "options": {}
+      },
+      "id": "split-messages",
+      "name": "Split Messages",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + $json.id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "format",
+              "value": "full"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Get Gmail Token for fgm@gmail.com').first().json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-email-details",
+      "name": "Get Email Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        200,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract email content and headers\nfunction decodeBase64Url(data) {\n  if (!data) return '';\n  try {\n    return Buffer.from(data, 'base64url').toString('utf-8');\n  } catch (e) {\n    return '';\n  }\n}\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const message = item.json;\n  const payload = message.payload || {};\n  \n  // Extract headers\n  const headers = payload.headers || [];\n  let fromEmail = '';\n  let subject = '';\n  let toEmail = '';\n  let messageId = '';\n  \n  for (const h of headers) {\n    if (!h || !h.name || !h.value) continue;\n    const name = String(h.name).toLowerCase();\n    const value = String(h.value).trim();\n    \n    if (name === 'from') {\n      // Extract email from \"Name <email@domain.com>\" or just \"email@domain.com\"\n      const emailMatch = value.match(/<([^>]+)>/) || value.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})/);\n      if (emailMatch) fromEmail = emailMatch[1] || emailMatch[0];\n    } else if (name === 'to') {\n      toEmail = value;\n    } else if (name === 'subject') {\n      subject = value;\n    } else if (name === 'message-id') {\n      messageId = value;\n    }\n  }\n  \n  // Extract body text\n  let bodyText = '';\n  if (payload.parts && Array.isArray(payload.parts)) {\n    for (const part of payload.parts) {\n      if (part.mimeType === 'text/plain' && part.body && part.body.data) {\n        bodyText += decodeBase64Url(part.body.data);\n      } else if (part.mimeType === 'text/html' && part.body && part.body.data && !bodyText) {\n        // Fallback to HTML if no plain text\n        bodyText += decodeBase64Url(part.body.data);\n      }\n    }\n  } else if (payload.body && payload.body.data) {\n    bodyText = decodeBase64Url(payload.body.data);\n  }\n  \n  results.push({\n    json: {\n      gmail_message_id: message.id,\n      thread_id: message.threadId || '',\n      from_email: fromEmail,\n      to_email: toEmail,\n      subject: subject || '',\n      content: bodyText.trim(),\n      raw_message: message\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { error: 'No email data extracted' } }];"
+      },
+      "id": "extract-email-content",
+      "name": "Extract Email Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "ilike",
+              "keyValue": "={{ $json.from_email }}"
+            }
+          ]
+        }
+      },
+      "id": "match-user",
+      "name": "Match User by Email",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        600,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-user-found",
+              "leftValue": "={{ $json.itemCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-user-found",
+      "name": "User Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get user_id from matched user\nconst items = $input.all();\nconst emailData = $('Extract Email Content').first().json;\n\n// Get user from Match User node\nlet userId = null;\nlet userEmail = null;\n\ntry {\n  const userData = $('Match User by Email').first().json;\n  if (userData && userData.id) {\n    userId = userData.id;\n    userEmail = userData.email || emailData.from_email;\n  }\n} catch (e) {\n  // User not found\n}\n\nif (!userId) {\n  return [{ json: { error: 'User not found', from_email: emailData.from_email } }];\n}\n\nreturn [{\n  json: {\n    ...emailData,\n    user_id: userId,\n    user_email: userEmail\n  }\n}];"
+      },
+      "id": "prepare-unified-event",
+      "name": "Prepare Unified Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "unified_events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldId": "source_type",
+              "fieldValue": "email_command"
+            },
+            {
+              "fieldId": "source_item_id",
+              "fieldValue": "={{ $json.gmail_message_id }}"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.content }}"
+            },
+            {
+              "fieldId": "subject",
+              "fieldValue": "={{ $json.subject }}"
+            },
+            {
+              "fieldId": "sender_email",
+              "fieldValue": "={{ $json.from_email }}"
+            },
+            {
+              "fieldId": "processing_status",
+              "fieldValue": "pending"
+            },
+            {
+              "fieldId": "raw_data",
+              "fieldValue": "={{ JSON.stringify($json.raw_message) }}"
+            }
+          ]
+        }
+      },
+      "id": "create-unified-event",
+      "name": "Create Unified Event",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LiyXJ3va3HnvvAkS",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "workflowId": "4rleLK1hglMsB9GT",
+        "source": "database",
+        "mode": "once",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "unified_event_id": "={{ $json.id }}",
+            "user_id": "={{ $json.user_id }}",
+            "email_content": "={{ $json.content }}",
+            "subject": "={{ $json.subject }}",
+            "sender_email": "={{ $json.sender_email }}"
+          },
+          "matchingColumns": {},
+          "schema": []
+        }
+      },
+      "id": "execute-command-processor",
+      "name": "Execute Command Processor",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1400,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if processing was successful and mark email as processed\nconst items = $input.all();\nconst emailData = $('Extract Email Content').first().json;\nconst unifiedEventData = $('Create Unified Event').first().json;\n\ntry {\n  // Get result from command processor\n  const processorResult = items[0]?.json || {};\n  const processingStatus = processorResult.processing_status || unifiedEventData.processing_status || 'error';\n  \n  return [{\n    json: {\n      gmail_message_id: emailData.gmail_message_id,\n      thread_id: emailData.thread_id,\n      processing_status: processingStatus,\n      unified_event_id: unifiedEventData.id,\n      should_archive: processingStatus === 'completed',\n      should_label_error: processingStatus === 'error'\n    }\n  }];\n} catch (e) {\n  return [{\n    json: {\n      gmail_message_id: emailData.gmail_message_id,\n      processing_status: 'error',\n      error: String(e),\n      should_archive: false,\n      should_label_error: true\n    }\n  }];\n}"
+      },
+      "id": "check-processing-result",
+      "name": "Check Processing Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-should-archive",
+              "leftValue": "={{ $json.should_archive }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "should-archive-email",
+      "name": "Should Archive Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1800,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + $json.gmail_message_id + '/modify' }}",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "addLabelIds",
+              "value": "=bippity-processed"
+            },
+            {
+              "name": "removeLabelIds",
+              "value": "=UNREAD,INBOX"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Get Gmail Token for fgm@gmail.com').first().json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "archive-email",
+      "name": "Archive and Label Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2000,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + $json.gmail_message_id + '/modify' }}",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "addLabelIds",
+              "value": "=bippity-error"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Get Gmail Token for fgm@gmail.com').first().json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "label-error-email",
+      "name": "Label Error Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2000,
+        200
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send' }}",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "raw",
+              "value": "={{ $json.raw_email }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Get Gmail Token for fgm@gmail.com').first().json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-error-email",
+      "name": "Send Error Email to Unmatched User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1000,
+        400
+      ],
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create raw email for sending error message\nconst items = $input.all();\nconst emailData = $('Extract Email Content').first().json;\n\nconst fromEmail = 'fgm@gmail.com';\nconst toEmail = emailData.from_email;\nconst subject = 'Re: ' + (emailData.subject || 'Your email to Bippity.boo');\nconst body = `Hi,\n\nI received your email but couldn't find an account associated with ${toEmail}.\n\nTo use Bippity.boo, please:\n1. Visit https://bippity.boo\n2. Sign up with Google using your email: ${toEmail}\n3. Complete the onboarding process\n\nOnce you're set up, you can email me at fgm@gmail.com with commands like:\n- \"Add fact: [your fact text]\"\n- \"Show my calendar for [date]\"\n- \"Create task: [task title] due [date]\"\n\n- Your Fairy God Mother \ud83e\udd16\n\n---\nOriginal message:\n${emailData.subject || '(no subject)'}\n${emailData.content.substring(0, 500)}`;\n\n// Create raw email format (base64url encoded)\nconst emailText = `To: ${toEmail}\nFrom: ${fromEmail}\nSubject: ${subject}\nContent-Type: text/plain; charset=utf-8\n\n${body}`;\n\nconst rawEmail = Buffer.from(emailText).toString('base64url');\n\nreturn [{\n  json: {\n    raw_email: rawEmail,\n    to_email: toEmail\n  }\n}];"
+      },
+      "id": "prepare-error-email",
+      "name": "Prepare Error Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        400
+      ],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Gmail Token for fgm@gmail.com",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Gmail Token for fgm@gmail.com": {
+      "main": [
+        [
+          {
+            "node": "Search Gmail for Commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Gmail for Commands": {
+      "main": [
+        [
+          {
+            "node": "Split Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Messages": {
+      "main": [
+        [
+          {
+            "node": "Get Email Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email Details": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Content": {
+      "main": [
+        [
+          {
+            "node": "Match User by Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match User by Email": {
+      "main": [
+        [
+          {
+            "node": "User Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Found?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Unified Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Error Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Unified Event": {
+      "main": [
+        [
+          {
+            "node": "Create Unified Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Unified Event": {
+      "main": [
+        [
+          {
+            "node": "Execute Command Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command Processor": {
+      "main": [
+        [
+          {
+            "node": "Check Processing Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Processing Result": {
+      "main": [
+        [
+          {
+            "node": "Should Archive Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Archive Email?": {
+      "main": [
+        [
+          {
+            "node": "Archive and Label Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Label Error Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Error Email": {
+      "main": [
+        [
+          {
+            "node": "Send Error Email to Unmatched User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  }
+}

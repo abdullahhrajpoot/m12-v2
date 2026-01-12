@@ -1,0 +1,41 @@
+{
+  "backup_date": "2026-01-12T13:28:51.400696",
+  "workflows": [
+    {
+      "id": "vexJG6Y46lso0qKf",
+      "name": "Parallelized_Onboarding_Supabase"
+    },
+    {
+      "id": "NScxKgKI3k1JDJai",
+      "name": "Onboarding Finalize"
+    },
+    {
+      "id": "GY0jcwcSgVgAfHiI",
+      "name": "Bippity - Gmail Command Poller MultiTenant"
+    },
+    {
+      "id": "jk5gL6NtGAGZi9G5",
+      "name": "Bippity - Email Command Processor MultiTenant"
+    },
+    {
+      "id": "RN3CGbcsMJy3ExwA",
+      "name": "Bippity - AI Email Processor"
+    },
+    {
+      "id": "YLmpF5CnOPUFDYJz",
+      "name": "Bippity - Scheduled Email Check"
+    },
+    {
+      "id": "Ek0ft5PCAEv3qB5b",
+      "name": "Bippity Token Refresh Cron"
+    },
+    {
+      "id": "fyNaHTZY8javrwU5",
+      "name": "Error Handler - Sentry"
+    },
+    {
+      "id": "HwRvoNIeRyF8W0NG",
+      "name": "[ARCHIVED] Google Auth Supabase Powered Onboarding"
+    }
+  ]
+}

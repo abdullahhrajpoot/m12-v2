@@ -229,7 +229,7 @@ export default function Home() {
         return
       }
       
-      // Handle OAuth errors (e.g., from Nango or Supabase)
+      // Handle OAuth errors from Supabase
       if (error) {
         const errorCode = urlParams.get('error_code')
         console.error('OAuth error detected:', {
