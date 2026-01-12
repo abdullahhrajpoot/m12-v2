@@ -295,7 +295,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Split messages array into individual items for HTTP Request batching\nconst items = $input.all();\nif (!items || items.length === 0 || !items[0].json || !items[0].json.messages) {\n  return [{ json: { id: null } }];\n}\n\nconst messages = items[0].json.messages;\n\n// Get token using $() syntax which is more reliable after Merge nodes\nlet token = null;\ntry {\n  token = $('Get Token from Supabase').first().json.access_token;\n} catch (e) {\n  // Fallback to $node syntax\n  try {\n    token = $node['Get Token from Supabase'].json.access_token;\n  } catch (e2) {\n    // If still failing, return error\n    return [{ json: { error: 'Could not get access token', id: null } }];\n  }\n}\n\n// Output one item per message for HTTP Request node to process\n// Store _source in _originalSource so it survives HTTP Request\nreturn messages.map(msg => ({\n  json: {\n    id: msg.id,\n    threadId: msg.threadId,\n    _source: msg._source,\n    _originalSource: msg._source, // Backup field\n    _originalThreadId: msg.threadId, // Backup field\n    access_token: token\n  }\n}));"
+        "jsCode": "// Split messages array into individual items for HTTP Request batching\nconst items = $input.all();\nif (!items || items.length === 0 || !items[0].json || !items[0].json.messages) {\n  return []; // Return empty array instead of null id to prevent downstream errors\n}\n\nconst messages = items[0].json.messages;\n\n// Filter out messages without valid IDs\nconst validMessages = messages.filter(msg => msg && msg.id);\nif (validMessages.length === 0) {\n  return []; // Return empty array if no valid messages\n}\n\n// Get token using $() syntax which is more reliable after Merge nodes\nlet token = null;\ntry {\n  token = $('Get Token from Supabase').first().json.access_token;\n} catch (e) {\n  // Fallback to $node syntax\n  try {\n    token = $node['Get Token from Supabase'].json.access_token;\n  } catch (e2) {\n    // If still failing, return empty array to prevent downstream errors\n    return [];\n  }\n}\n\nif (!token) {\n  return []; // Return empty array if no token\n}\n\n// Output one item per message for HTTP Request node to process\n// Store _source in _originalSource so it survives HTTP Request\nreturn validMessages.map(msg => ({\n  json: {\n    id: msg.id,\n    threadId: msg.threadId,\n    _source: msg._source,\n    _originalSource: msg._source, // Backup field\n    _originalThreadId: msg.threadId, // Backup field\n    access_token: token\n  }\n}));"
       },
       "id": "split-metadata-requests",
       "name": "Split Messages for Metadata",
@@ -306,14 +306,12 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + $json.id }}",
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + ($json.id || '') }}",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             { "name": "format", "value": "metadata" },
-            { "name": "metadataHeaders", "value": "Date" },
-            { "name": "metadataHeaders", "value": "From" },
-            { "name": "metadataHeaders", "value": "Subject" }
+            { "name": "metadataHeaders", "value": "Date,From,Subject" }
           ]
         },
         "sendHeaders": true,
