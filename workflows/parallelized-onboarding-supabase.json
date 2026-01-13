@@ -139,7 +139,7 @@
         "sendQuery": true,
         "queryParameters": { "parameters": [{ "name": "format", "value": "full" }] },
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $json.access_token || '' }}" }] },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $json.access_token || $('Get Token from Supabase').first().json.access_token || '' }}" }] },
         "options": { 
           "batching": { "batch": { "batchSize": 10, "batchInterval": 6000 } },
           "response": {
