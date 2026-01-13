@@ -124,7 +124,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Add access_token to each item from the token node\n// Use robust $() syntax for reliable node reference\n// Also filter out items without valid IDs to prevent downstream errors\nlet token = null;\ntry {\n  token = $('Get Token from Supabase').first().json.access_token;\n} catch (e) {\n  // Fallback\n  token = $node['Get Token from Supabase']?.json?.access_token || null;\n}\n\nif (!token) {\n  // If no token, return empty array to prevent 401 errors\n  return [];\n}\n\nconst items = $input.all();\n\n// Filter out items without valid IDs and add token\nreturn items\n  .filter(item => item && item.json && item.json.id && typeof item.json.id === 'string' && item.json.id.length > 0)\n  .map(item => ({\n    json: {\n      ...item.json,\n      access_token: token\n    }\n  }));"
+        "jsCode": "// Add access_token to each item from the token node\n// Use robust $() syntax for reliable node reference\n// Also filter out items without valid IDs to prevent downstream errors\nlet token = null;\ntry {\n  token = $('Get Token from Supabase').first().json.access_token;\n} catch (e) {\n  // Fallback\n  token = $node['Get Token from Supabase']?.json?.access_token || null;\n}\n\n// NOTE: Do NOT return [] if no token - let workflow continue so downstream gets informative 401\n\nconst items = $input.all();\n\n// Filter out items without valid IDs and add token\nreturn items\n  .filter(item => item && item.json && item.json.id && typeof item.json.id === 'string' && item.json.id.length > 0)\n  .map(item => ({\n    json: {\n      ...item.json,\n      access_token: token\n    }\n  }));"
       },
       "name": "Add Token To Items",
       "id": "add-token",
