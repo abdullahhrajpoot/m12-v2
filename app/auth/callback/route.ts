@@ -173,6 +173,10 @@ export async function GET(request: Request) {
       // #endregion
     }
     
+    // TEMPORARILY DISABLED: Scope verification was causing false positives
+    // When tokeninfo fails, it incorrectly redirected users to missing-permissions page
+    // TODO: Re-enable with better error handling once core auth flow is stable
+    /*
     // Verify OAuth scopes after token storage
     // If missing scopes, redirect to missing-permissions page
     if (providerToken && provider === 'google' && userId) {
@@ -198,6 +202,8 @@ export async function GET(request: Request) {
         console.warn('⚠️ Scope verification failed, continuing with flow:', scopeError)
       }
     }
+    */
+    console.log('ℹ️ Scope verification temporarily disabled')
     
     // ALWAYS trigger n8n onboarding workflow (moved outside serviceRoleKey check)
     // This ensures user status is updated from needs_reauth to active
