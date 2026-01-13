@@ -51,7 +51,7 @@ const PERMISSIONS: Permission[] = [
     name: 'Google Calendar',
     description: 'Access your calendar',
     icon: <Calendar className="w-5 h-5" />,
-    why: 'We check your calendar to identify events, schedules, and important dates.'
+    why: 'We need to create and update events for you, and check your calendar to identify schedules and important dates.'
   },
   {
     scope: 'https://www.googleapis.com/auth/tasks',
@@ -87,7 +87,7 @@ function MissingPermissionsContent() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -163,8 +163,14 @@ function MissingPermissionsContent() {
               <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-semibold">
                 1
               </div>
-              <div>
-                <p className="font-semibold text-slate-900">Click "Try Again" below</p>
+              <div className="flex-1">
+                <p className="font-semibold text-slate-900 mb-2">Click "Try Again" below or here</p>
+                <div className="mb-3">
+                  <ConnectButton 
+                    text="Try Again - Sign In With Google" 
+                    className="inline-flex"
+                  />
+                </div>
                 <p className="text-sm text-slate-600">This will open the Google sign-in screen again.</p>
               </div>
             </div>
