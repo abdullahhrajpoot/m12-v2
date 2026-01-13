@@ -364,9 +364,7 @@
         "queryParameters": {
           "parameters": [
             { "name": "format", "value": "metadata" },
-            { "name": "metadataHeaders", "value": "Date" },
-            { "name": "metadataHeaders", "value": "From" },
-            { "name": "metadataHeaders", "value": "Subject" }
+            { "name": "metadataHeaders", "value": "Date,From,Subject" }
           ]
         },
         "sendHeaders": true,
