@@ -38,3 +38,5 @@ COMMENT ON TABLE onboarding_summaries IS 'Simplified schema: Stores AI-extracted
 
 
 
+
+

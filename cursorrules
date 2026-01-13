@@ -17,7 +17,7 @@ Email is the starting input source; planned sources include school portals, acti
 - **Workflow automation**: n8n Cloud
 - **Database**: Supabase (PostgreSQL)
 - **Auth**: Supabase Auth
-- **OAuth**: Nango (multi-tenant OAuth management)
+- **OAuth**: Supabase Auth (Google OAuth provider)
 - **AI**: ChatGPT via n8n agent
 - **Target architecture**: Multi-tenant SaaS
 
@@ -30,15 +30,15 @@ Email is the starting input source; planned sources include school portals, acti
 ### Pages
 | Route | Purpose |
 |-------|---------|
-| `/` | Landing page + Login button (Nango OAuth) |
+| `/` | Landing page + Login button (Supabase Auth OAuth) |
 | `/dashboard` | Display family_facts, calendar, tasks from Supabase |
 | `/onboarding` | Post-signup flow to confirm family_facts |
 
 ### Frontend Conventions
 - Use Next.js App Router
 - Supabase client for auth + data (no separate API server)
-- Login triggers Nango OAuth flow
-- Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_NANGO_PUBLIC_KEY`
+- Login triggers Supabase Auth OAuth flow
+- Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ### Deployment
 - Host: Railway
@@ -64,7 +64,7 @@ Email is the starting input source; planned sources include school portals, acti
 - Name workflows descriptively: `email-to-calendar-event.json`
 - Use sticky notes in n8n to document complex logic
 - Always include error handling nodes
-- Credentials fetched via Nango, never stored in n8n
+- OAuth tokens fetched from Supabase `oauth_tokens` table via `/api/auth/tokens` endpoint, never stored in n8n
 - Subworkflows for reusable logic (task CRUD, calendar CRUD)
 
 ## Database Schema Context
@@ -105,7 +105,7 @@ Do NOT just edit local JSON files unless I specifically ask for offline work.
 
 ## Common Tasks
 When I ask you to:
-- "Debug a workflow" → Use MCP to fetch live workflow, check null handling, API errors, data type mismatches, Nango token fetching
+- "Debug a workflow" → Use MCP to fetch live workflow, check null handling, API errors, data type mismatches, Supabase token fetching via `/api/auth/tokens`
 - "Add a new source" → Design ingestion flow, normalization to unified_events, source-specific parsing
 - "Optimize tokens" → Look for redundant context, suggest field extraction over full-text
 - "Add a feature" → Consider multi-tenant implications, idempotency, audit trail

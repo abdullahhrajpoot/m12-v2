@@ -1,19 +1,5 @@
 #!/bin/bash
-# Backup n8n workflows to git
-# This script will be called with workflow data from Python
-
-set -e
-
-WORKFLOWS_DIR="workflows"
-mkdir -p "$WORKFLOWS_DIR"
-
-echo "Workflow backup directory ready: $WORKFLOWS_DIR"
-
-
-
-
-
-
-
-
+# This script will be used to save workflows
+# We'll call it with workflow data
+echo "Backup script ready"
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+Script to save n8n workflows from tool response JSON.
+Reads workflow JSON from stdin (can be n8n API response format or direct workflow format).
+"""
 import json
 import re
 import sys
@@ -37,3 +41,5 @@ if __name__ == "__main__":
         json.dump(workflow_data, f, indent=2)
     
     print(f"Saved: {workflow_name} (ID: {workflow_id}) -> {filename}.json")
+
+

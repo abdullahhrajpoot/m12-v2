@@ -85,7 +85,7 @@ Bippity.boo will evolve from read-only to taking actions: logging into portals, 
 | Workflows | n8n Cloud | Working |
 | Database | Supabase (PostgreSQL) | Working |
 | Auth | Supabase Auth | Working |
-| OAuth | Nango (Gmail, GCal, GTasks) | Working |
+| OAuth | Supabase Auth (Google OAuth) | Working |
 | AI | ChatGPT via n8n agent | Working |
 
 ---
@@ -101,12 +101,12 @@ Reference files in `/bippityboo-711a96a6` folder show the Base44 design to prese
 
 | Page | Route | Purpose |
 |------|-------|---------|
-| Landing | `/` | Marketing + Login button (Nango OAuth) |
+| Landing | `/` | Marketing + Login button (Supabase Auth OAuth) |
 | Dashboard | `/dashboard` | Display family_facts, calendar, tasks from Supabase |
 | Onboarding | `/onboarding` | Post-signup flow to confirm family_facts |
 
 ### Key frontend requirements
-- Login button triggers Nango OAuth flow (Gmail)
+- Login button triggers Supabase Auth OAuth flow (Google with Gmail/Calendar/Tasks scopes)
 - Dashboard pulls `family_facts` from Supabase and displays as strings
 - Preserve visual style from Base44 reference files
 - Use Supabase client for auth + data
@@ -115,7 +115,8 @@ Reference files in `/bippityboo-711a96a6` folder show the Base44 design to prese
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_NANGO_PUBLIC_KEY=
+SUPABASE_SERVICE_ROLE_KEY= (for token storage in oauth_tokens table)
+N8N_API_KEY= (for n8n workflows to authenticate to Next.js API)
 ```
 
 ### Deployment
@@ -132,9 +133,10 @@ Custom domain: bippity.boo (configure in Railway dashboard)
 ## Data Flow
 
 ```
-1. User clicks Login → Nango OAuth (Gmail)
-2. Nango connection success → triggers n8n Cloud webhook
+1. User clicks Login → Supabase Auth OAuth (Google with Gmail/Calendar/Tasks scopes)
+2. OAuth success → /auth/callback stores tokens in oauth_tokens table → triggers n8n Cloud webhook
 3. n8n workflow:
+   - Retrieves OAuth tokens from /api/auth/tokens endpoint
    - Fetches emails via Gmail API
    - Stage 1: Relevance check (ChatGPT agent)
    - Stage 2: Extract events/tasks (ChatGPT agent)
@@ -205,7 +207,7 @@ Bippity.boo follows a microservices-style architecture using n8n workflows as di
 
 | Workflow | Description | Status |
 |----------|-------------|--------|
-| **Google Auth Nango Powered Onboarding** | "Sign up with Google" flow via Nango | Waiting on landing page |
+| **Bippity - Parallelized_Onboarding_Supabase** | "Sign up with Google" flow via Supabase Auth | Active |
 
 ### Task Subworkflows (Multi-Tenant)
 
@@ -233,7 +235,8 @@ Bippity.boo follows a microservices-style architecture using n8n workflows as di
 | Table | Purpose |
 |-------|---------|
 | `users` | User accounts |
-| `connected_services` | Which services each user has connected (Nango handles actual tokens) |
+| `oauth_tokens` | OAuth provider tokens (Google) stored for n8n workflows to access |
+| `connected_services` | Which services each user has connected |
 | `unified_events` | All incoming communications - single source of truth |
 | `family_facts` | Context about each family (kids, schools, activities) — displayed on dashboard |
 | `family_keywords` | Keywords generated from family_facts for Gmail search |
@@ -262,7 +265,7 @@ Bippity.boo follows a microservices-style architecture using n8n workflows as di
 
 ## Privacy & Security Principles
 
-1. **OAuth via Nango** - We never store user credentials or tokens directly
+1. **OAuth via Supabase Auth** - OAuth tokens stored in `oauth_tokens` table for n8n workflows to retrieve
 2. **Sender whitelist preferred** - Rather than reading all email, prefer whitelist of sender addresses
 3. **Minimal data retention** - Process emails, extract structured data, don't hoard raw content
 4. **User owns their data** - Easy export, easy delete
@@ -275,12 +278,12 @@ Bippity.boo follows a microservices-style architecture using n8n workflows as di
 ## Roadmap & Priorities
 
 ### Priority 1: Frontend (Current)
-- Build Next.js landing page with Nango OAuth login
+- Build Next.js landing page with Supabase Auth OAuth login
 - Build dashboard displaying family_facts from Supabase
 - Deploy to Railway with bippity.boo domain
 
 ### Priority 2: Multi-Tenant Testing
-- Get all TEST workflows working with Nango OAuth
+- Get all TEST workflows working with Supabase Auth OAuth (already migrated)
 - Validate subworkflow tools work correctly
 - Remove hardcoded test values once stable
 
@@ -324,7 +327,7 @@ Bippity.boo follows a microservices-style architecture using n8n workflows as di
 
 | Service | Purpose | Notes |
 |---------|---------|-------|
-| **Nango** | OAuth token management | Multi-tenant, handles refresh automatically |
+| **Supabase Auth** | OAuth token management | Google OAuth provider, tokens stored in `oauth_tokens` table |
 | **Gmail API** | Email ingestion | Read-only, search-based fetching |
 | **Google Tasks API** | Task management | No native search capability |
 | **Google Calendar API** | Event management | Full CRUD |
@@ -359,7 +362,7 @@ When AI cannot confidently process an email:
 - Use Next.js App Router
 - Supabase client for auth + data (no separate API server needed)
 - Preserve visual style from `/bippityboo-711a96a6` folder (Base44 design)
-- Login button triggers Nango OAuth
+- Login button triggers Supabase Auth OAuth (Google provider)
 - Dashboard displays `family_facts` as strings
 
 ### When Working on n8n Workflows

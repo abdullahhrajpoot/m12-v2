@@ -50,6 +50,7 @@ export async function GET(request: Request) {
 
   let userId: string | null = null
   let userEmail: string | null = null
+  let userFullName: string | null = null
   let providerToken: string | null = null
   let providerRefreshToken: string | null = null
   let provider: string = 'google'
@@ -76,6 +77,9 @@ export async function GET(request: Request) {
       expiresAt = sessionData.session.expires_at
         ? new Date(sessionData.session.expires_at * 1000).toISOString()
         : null
+      // Extract full name from Google OAuth user metadata
+      userFullName = sessionData.session.user.user_metadata?.full_name || 
+                     sessionData.session.user.user_metadata?.name || null
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:75',message:'Extracted token values',data:{userId,userEmail,hasProviderToken:!!providerToken,providerTokenLength:providerToken?.length||0,hasRefreshToken:!!providerRefreshToken,provider,expiresAt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
@@ -229,6 +233,7 @@ export async function GET(request: Request) {
         body: JSON.stringify({
           userId: userId,
           email: userEmail,
+          fullName: userFullName,
         }),
       })
       

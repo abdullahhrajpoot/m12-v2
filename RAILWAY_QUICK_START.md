@@ -23,7 +23,9 @@ Add these:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://[your-project].supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=[your-anon-key]
-NEXT_PUBLIC_NANGO_PUBLIC_KEY=[your-nango-public-key]
+SUPABASE_SERVICE_ROLE_KEY=[your-service-role-key]
+N8N_API_KEY=[your-n8n-api-key]
+NEXT_PUBLIC_APP_URL=https://bippity.boo
 NODE_ENV=production
 ```
 
@@ -63,11 +65,14 @@ Name: @
 Value: [Railway IP 2]
 ```
 
-### 6. Update Nango Redirect URLs
+### 6. Configure Supabase Auth Google Provider
 
-1. Nango Dashboard → Settings → Integrations → Google
-2. Add redirect URL: `https://bippity.boo/nango-callback`
-3. Keep localhost for dev: `http://localhost:3000/nango-callback`
+1. Supabase Dashboard → Authentication → Providers → Google
+2. Enable Google provider
+3. Add Authorized redirect URLs:
+   - `https://bippity.boo/auth/callback`
+   - `http://localhost:3000/auth/callback` (for local dev)
+4. Add scopes: `email`, `profile`, `https://www.googleapis.com/auth/gmail.readonly`, `https://www.googleapis.com/auth/gmail.labels`, `https://www.googleapis.com/auth/calendar`, `https://www.googleapis.com/auth/tasks`
 
 ### 7. Verify
 
@@ -88,8 +93,8 @@ railway logs
 
 - [ ] Next.js project created
 - [ ] All pages converted from Base44
-- [ ] ConnectButton component uses `NEXT_PUBLIC_NANGO_PUBLIC_KEY`
-- [ ] OAuth callback page at `/app/nango-callback/page.tsx`
+- [ ] ConnectButton component uses Supabase Auth OAuth
+- [ ] OAuth callback page at `/app/auth/callback/route.ts`
 - [ ] Supabase client configured
 - [ ] Environment variables ready
 - [ ] `next.config.js` has `output: 'standalone'`
@@ -104,7 +109,7 @@ railway logs
 bippity-nextjs/
 ├── app/
 │   ├── page.tsx                 # Landing (from Home.jsx)
-│   ├── nango-callback/page.tsx  # OAuth callback
+│   ├── auth/callback/route.ts   # OAuth callback
 │   └── dashboard/page.tsx       # Dashboard
 ├── components/
 │   └── ConnectButton.tsx        # Sign-up button
@@ -118,9 +123,9 @@ bippity-nextjs/
 ## ⚠️ Common Pitfalls
 
 1. **Missing `NEXT_PUBLIC_` prefix** → Environment variables won't work in browser
-2. **Wrong Nango redirect URL** → OAuth callback will fail
+2. **Wrong Supabase redirect URL** → OAuth callback will fail (must match `/auth/callback`)
 3. **DNS TTL too high** → Can't rollback quickly if issues
-4. **Using Nango secret key in frontend** → Security risk! Use public key only
+4. **Missing SUPABASE_SERVICE_ROLE_KEY** → OAuth tokens won't be stored for n8n workflows
 5. **Not testing locally first** → Deploy bugs to production
 
 ---
@@ -130,7 +135,7 @@ bippity-nextjs/
 | Issue | Solution |
 |-------|----------|
 | DNS not resolving | Wait 15-60 min, check DNS records, verify TTL |
-| OAuth fails | Check Nango redirect URL, verify public key |
+| OAuth fails | Check Supabase redirect URL, verify Google provider is enabled, check callback route |
 | Build fails | Check `next.config.js`, Node version, dependencies |
 | 404 on pages | Verify App Router structure, check file names |
 | Env vars undefined | Ensure `NEXT_PUBLIC_` prefix, restart dev server |

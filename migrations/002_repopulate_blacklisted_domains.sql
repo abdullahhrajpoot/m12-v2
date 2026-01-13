@@ -1,6 +1,7 @@
 -- Migration: Repopulate blacklisted_domains table
 -- Adds common financial and medical domains that should be excluded from email processing
 -- Date: 2025-12-28
+-- Updated: Repopulates table by clearing and re-adding all domains
 
 -- Common domains to blacklist for all users (financial, medical, sensitive)
 -- These domains should never be processed by the email automation system
@@ -59,10 +60,7 @@ DECLARE
         'turbotax.com',
         'hrblock.com',
         'intuit.com',
-        -- Investment/Retirement
-        'schwab.com',
-        'fidelity.com',
-        'vanguard.com',
+        -- Investment/Retirement (schwab.com, fidelity.com, vanguard.com already listed above)
         'charles-schwab.com',
         -- Cryptocurrency/High-risk financial
         'coinbase.com',
@@ -80,24 +78,29 @@ DECLARE
         'geico.com',
         'allstate.com',
         'progressive.com',
-        'libertymutual.com'
+        'libertymutual.com',
+        -- Internal/Self-sent emails
+        'bippity.boo'
     ];
     domain_name TEXT;
 BEGIN
+    -- Clear all existing blacklisted domains to repopulate fresh
+    DELETE FROM blacklisted_domains;
+    
     -- Insert blacklisted domains for each user
     FOR user_record IN SELECT id FROM users LOOP
         FOREACH domain_name IN ARRAY domain_list LOOP
-            -- Use INSERT ... ON CONFLICT DO NOTHING to avoid duplicates
-            -- (assuming unique constraint on (user_id, domain) or we'll use idempotent insert)
             INSERT INTO blacklisted_domains (user_id, domain, is_active, created_at, updated_at)
             VALUES (user_record.id, domain_name, true, NOW(), NOW())
-            ON CONFLICT DO NOTHING;
+            ON CONFLICT (user_id, domain) DO UPDATE
+            SET is_active = true, updated_at = NOW();
         END LOOP;
     END LOOP;
 END $$;
 
 -- Add comment to document this migration
 COMMENT ON TABLE blacklisted_domains IS 'Domains excluded from email processing for privacy/security. Should never be cleared except through explicit domain-specific operations.';
+
 
 
 
