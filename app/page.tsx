@@ -504,6 +504,35 @@ export default function Home() {
           </FadeIn>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="bg-slate-900 text-slate-400 py-12 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-400" />
+              <span className="font-bold text-lg text-white">bippity.boo</span>
+            </div>
+            <div className="flex items-center gap-6 text-sm">
+              <a 
+                href="/privacy" 
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                Privacy Policy
+              </a>
+              <a 
+                href="/terms" 
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                Terms of Service
+              </a>
+            </div>
+            <div className="text-sm text-slate-500">
+              © {new Date().getFullYear()} Bippity.boo. All rights reserved.
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
