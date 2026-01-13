@@ -41,19 +41,28 @@ export async function POST(request: NextRequest) {
     let hasProfile = false
     let hasGmailReadonly = false
     let hasGmailLabels = false
+    let tokeninfoFailed = false
 
     if (tokenInfoResponse.ok) {
-      const tokenInfo = await tokenInfoResponse.json()
-      grantedScopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : []
-      
-      // Check for email/profile which might be implicit
-      hasEmail = grantedScopes.includes('email') || !!tokenInfo.email
-      hasProfile = grantedScopes.includes('profile') || !!tokenInfo.user_id
-      hasGmailReadonly = grantedScopes.includes('https://www.googleapis.com/auth/gmail.readonly')
-      hasGmailLabels = grantedScopes.includes('https://www.googleapis.com/auth/gmail.labels')
-      
-      if (hasEmail) grantedScopes.push('email')
-      if (hasProfile) grantedScopes.push('profile')
+      try {
+        const tokenInfo = await tokenInfoResponse.json()
+        grantedScopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : []
+        
+        // Check for email/profile which might be implicit
+        hasEmail = grantedScopes.includes('email') || !!tokenInfo.email
+        hasProfile = grantedScopes.includes('profile') || !!tokenInfo.user_id
+        hasGmailReadonly = grantedScopes.includes('https://www.googleapis.com/auth/gmail.readonly')
+        hasGmailLabels = grantedScopes.includes('https://www.googleapis.com/auth/gmail.labels')
+        
+        if (hasEmail) grantedScopes.push('email')
+        if (hasProfile) grantedScopes.push('profile')
+      } catch (e) {
+        console.error('Error parsing tokeninfo response:', e)
+        tokeninfoFailed = true
+      }
+    } else {
+      console.warn('Tokeninfo endpoint failed:', tokenInfoResponse.status, tokenInfoResponse.statusText)
+      tokeninfoFailed = true
     }
 
     // Test Calendar and Tasks scopes with actual GET API calls
@@ -100,42 +109,61 @@ export async function POST(request: NextRequest) {
     // Determine missing scopes
     const missingScopes: string[] = []
     
-    if (!hasGmailReadonly) {
+    // If tokeninfo failed, we can't verify Gmail/email/profile, so mark them as missing
+    // This ensures we catch missing scopes even if tokeninfo is unavailable
+    if (tokeninfoFailed) {
       missingScopes.push('https://www.googleapis.com/auth/gmail.readonly')
-    }
-    if (!hasGmailLabels) {
       missingScopes.push('https://www.googleapis.com/auth/gmail.labels')
+      missingScopes.push('email')
+      missingScopes.push('profile')
+    } else {
+      // Only check Gmail/email/profile if tokeninfo succeeded
+      if (!hasGmailReadonly) {
+        missingScopes.push('https://www.googleapis.com/auth/gmail.readonly')
+      }
+      if (!hasGmailLabels) {
+        missingScopes.push('https://www.googleapis.com/auth/gmail.labels')
+      }
+      if (!hasEmail) {
+        missingScopes.push('email')
+      }
+      if (!hasProfile) {
+        missingScopes.push('profile')
+      }
     }
+    
+    // Calendar and Tasks are always tested via GET API calls
     if (!hasCalendar) {
       missingScopes.push('https://www.googleapis.com/auth/calendar')
     }
     if (!hasTasks) {
       missingScopes.push('https://www.googleapis.com/auth/tasks')
     }
-    if (!hasEmail) {
-      missingScopes.push('email')
-    }
-    if (!hasProfile) {
-      missingScopes.push('profile')
-    }
 
-    return NextResponse.json({
+    const result = {
       hasAllScopes: missingScopes.length === 0,
       missingScopes: missingScopes,
       grantedScopes: grantedScopes,
       requiredScopes: REQUIRED_SCOPES,
-      scopeTestResults: scopeTestResults
-    })
+      scopeTestResults: scopeTestResults,
+      tokeninfoFailed: tokeninfoFailed
+    }
+    
+    console.log('🔍 Scope verification result:', JSON.stringify(result, null, 2))
+    
+    return NextResponse.json(result)
 
   } catch (error: any) {
-    console.error('Error verifying scopes:', error)
+    console.error('❌ Error verifying scopes:', error)
     // Fail open - if verification fails, assume scopes are present
     // This prevents blocking legitimate users due to verification errors
+    // BUT log the error so we can debug issues
     return NextResponse.json({
       hasAllScopes: true,
       missingScopes: [],
       grantedScopes: [],
-      error: 'Verification failed, but continuing with flow'
+      error: 'Verification failed, but continuing with flow',
+      errorDetails: error.message || String(error)
     })
   }
 }

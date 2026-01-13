@@ -173,12 +173,9 @@ export async function GET(request: Request) {
       // #endregion
     }
     
-    // TEMPORARILY DISABLED: Scope verification was causing false positives
-    // When tokeninfo fails, it incorrectly redirected users to missing-permissions page
-    // TODO: Re-enable with better error handling once core auth flow is stable
-    /*
     // Verify OAuth scopes after token storage
     // If missing scopes, redirect to missing-permissions page
+    // Now uses GET API tests for Calendar/Tasks (more reliable than tokeninfo alone)
     if (providerToken && provider === 'google' && userId) {
       try {
         const verifyResponse = await fetch(`${appUrl}/api/auth/verify-scopes`, {
@@ -188,13 +185,25 @@ export async function GET(request: Request) {
         })
         
         if (verifyResponse.ok) {
-          const { hasAllScopes, missingScopes } = await verifyResponse.json()
+          const verifyData = await verifyResponse.json()
+          const { hasAllScopes, missingScopes, scopeTestResults } = verifyData
           
-          if (!hasAllScopes && missingScopes && missingScopes.length > 0) {
+          console.log('🔍 Scope verification results:', {
+            hasAllScopes,
+            missingScopes,
+            scopeTestResults
+          })
+          
+          // Only redirect if we have clear evidence of missing scopes
+          // AND the verification didn't fail completely (hasAllScopes is explicitly false, not undefined)
+          if (hasAllScopes === false && missingScopes && missingScopes.length > 0) {
             console.log('⚠️ Missing OAuth scopes detected:', missingScopes)
             const missingParam = encodeURIComponent(missingScopes.join(','))
             return NextResponse.redirect(new URL(`/auth/missing-permissions?missing=${missingParam}`, appUrl))
           }
+        } else {
+          // If verification endpoint fails, fail open - continue with normal flow
+          console.warn('⚠️ Scope verification endpoint returned error, continuing with flow')
         }
       } catch (scopeError) {
         // Fail open - if scope verification fails, continue with normal flow
@@ -202,8 +211,6 @@ export async function GET(request: Request) {
         console.warn('⚠️ Scope verification failed, continuing with flow:', scopeError)
       }
     }
-    */
-    console.log('ℹ️ Scope verification temporarily disabled')
     
     // ALWAYS trigger n8n onboarding workflow (moved outside serviceRoleKey check)
     // This ensures user status is updated from needs_reauth to active
