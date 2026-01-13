@@ -143,10 +143,8 @@
         "options": { 
           "batching": { "batch": { "batchSize": 10, "batchInterval": 6000 } },
           "response": {
-            "response": {
-              "fullResponse": false,
-              "neverError": true
-            }
+            "fullResponse": false,
+            "neverError": true
           }
         }
       },
@@ -382,19 +380,8 @@
         "options": { 
           "batching": { "batch": { "batchSize": 15, "batchInterval": 1500 } },
           "response": {
-            "response": {
-              "fullResponse": false,
-              "neverError": true
-            }
-          }
-        }
-        "options": { 
-          "batching": { "batch": { "batchSize": 15, "batchInterval": 1500 } },
-          "response": {
-            "response": {
-              "fullResponse": false,
-              "neverError": true
-            }
+            "fullResponse": false,
+            "neverError": true
           }
         }
       },
