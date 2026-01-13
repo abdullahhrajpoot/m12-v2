@@ -42,3 +42,19 @@
 2. Check THAT node's input - does it have the expected data?
 3. Fix ONLY that node
 4. Do NOT change upstream nodes that are passing data correctly
+
+## Lessons Learned - DO NOT REPEAT
+
+### 1. Don't add early returns in auth callback
+- Any `return NextResponse.redirect()` BEFORE the n8n webhook will skip the webhook
+- This breaks the entire workflow
+
+### 2. Don't trust external API calls in critical paths
+- The scope verification called Google's tokeninfo API
+- If that API fails for ANY reason, it caused false "missing permissions" errors
+- This blocked legitimate users and skipped the workflow
+
+### 3. Adding "safety features" can break core functionality
+- The scope verification was meant to help users
+- But it introduced a fragile dependency on an external API
+- Test thoroughly before adding features that can interrupt the auth flow
