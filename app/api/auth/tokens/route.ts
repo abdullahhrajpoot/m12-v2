@@ -82,6 +82,10 @@ export async function GET(request: NextRequest) {
         ? new Date(tokenData.expires_at) < new Date()
         : false
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/auth/tokens/route.ts:81',message:'Token expiry check',data:{userId,expires_at:tokenData.expires_at,expires_at_type:typeof tokenData.expires_at,isExpired,now:new Date().toISOString(),has_refresh_token:!!tokenData.refresh_token,access_token_length:tokenData.access_token?.length||0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+
       // If token is expired and we have a refresh token, automatically refresh it (fallback)
       // Note: Proactive refresh should be handled by cron job calling /api/auth/refresh-tokens
       // This on-demand refresh is a safety net for tokens that weren't refreshed proactively
@@ -99,6 +103,9 @@ export async function GET(request: NextRequest) {
         } else {
           try {
             console.log('🔄 Token expired, refreshing for user:', userId)
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/auth/tokens/route.ts:101',message:'Attempting token refresh',data:{userId,refresh_token_length:tokenData.refresh_token?.length||0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+            // #endregion
             
             // Refresh Google OAuth token
             const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -157,6 +164,9 @@ export async function GET(request: NextRequest) {
               const errorText = await refreshResponse.text()
               console.error('❌ Failed to refresh token:', refreshResponse.status, errorText)
               console.error('Refresh token used:', tokenData.refresh_token?.substring(0, 20) + '...')
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/auth/tokens/route.ts:159',message:'Token refresh FAILED',data:{userId,status:refreshResponse.status,errorText:errorText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+              // #endregion
               // If refresh fails, token is invalid - user needs to re-auth
               return NextResponse.json({
                 error: 'Token expired and refresh failed. Please re-authenticate.',
@@ -177,6 +187,10 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/auth/tokens/route.ts:181',message:'Returning token to n8n',data:{userId,isExpired,was_refreshed:false,access_token_prefix:tokenData.access_token?.substring(0,20),expires_at:tokenData.expires_at},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
 
       return NextResponse.json({
         provider: tokenData.provider,
