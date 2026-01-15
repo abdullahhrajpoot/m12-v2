@@ -30,10 +30,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // #region agent log
-    console.log('🔍 DEBUG H3 - Starting scope verification:', JSON.stringify({tokenPrefix:access_token?.substring(0,30),tokenLength:access_token?.length}));
-    fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'verify-scopes/route.ts:33',message:'Starting scope verification',data:{tokenPrefix:access_token?.substring(0,30),tokenLength:access_token?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     
     // Use Google's tokeninfo endpoint to get granted scopes (for Gmail, email, profile)
     const tokenInfoResponse = await fetch(
@@ -47,11 +43,6 @@ export async function POST(request: NextRequest) {
     let hasGmailReadonly = false
     let hasGmailLabels = false
     let tokeninfoFailed = false
-
-    // #region agent log
-    console.log('🔍 DEBUG H3 - Tokeninfo response:', JSON.stringify({ok:tokenInfoResponse.ok,status:tokenInfoResponse.status,statusText:tokenInfoResponse.statusText}));
-    fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'verify-scopes/route.ts:52',message:'Tokeninfo response',data:{ok:tokenInfoResponse.ok,status:tokenInfoResponse.status,statusText:tokenInfoResponse.statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
 
     if (tokenInfoResponse.ok) {
       try {
@@ -90,10 +81,6 @@ export async function POST(request: NextRequest) {
       })
       hasCalendar = calendarResponse.ok
       scopeTestResults.calendar = hasCalendar
-      // #region agent log
-      console.log('🔍 DEBUG H3 - Calendar API test:', JSON.stringify({ok:calendarResponse.ok,status:calendarResponse.status}));
-      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'verify-scopes/route.ts:95',message:'Calendar API test',data:{ok:calendarResponse.ok,status:calendarResponse.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       if (hasCalendar) {
         grantedScopes.push('https://www.googleapis.com/auth/calendar')
       }
@@ -112,10 +99,6 @@ export async function POST(request: NextRequest) {
       })
       hasTasks = tasksResponse.ok
       scopeTestResults.tasks = hasTasks
-      // #region agent log
-      console.log('🔍 DEBUG H3 - Tasks API test:', JSON.stringify({ok:tasksResponse.ok,status:tasksResponse.status}));
-      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'verify-scopes/route.ts:109',message:'Tasks API test',data:{ok:tasksResponse.ok,status:tasksResponse.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       if (hasTasks) {
         grantedScopes.push('https://www.googleapis.com/auth/tasks')
       }
