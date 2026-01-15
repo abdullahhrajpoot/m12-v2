@@ -304,9 +304,17 @@ export default function Home() {
               <p className="text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed">
                 School. Soccer. Ballet. I find what's relevant to your kid, update your calendar, create tasks, and catch conflicts — so you don't have to read every message.
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <ConnectButton />
-                <p className="text-sm text-slate-500 mt-4 sm:mt-0 sm:ml-4">
+              <div className="flex flex-col items-center justify-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <ConnectButton />
+                  <a 
+                    href="/waitlist" 
+                    className="text-sm font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-4 transition-colors"
+                  >
+                    Get on waiting list
+                  </a>
+                </div>
+                <p className="text-sm text-slate-500">
                   Less time in email. <br className="hidden sm:block"/> More quality time.
                 </p>
               </div>
@@ -499,7 +507,15 @@ export default function Home() {
               Let someone else <br className="lg:hidden" /> <span className="text-indigo-600">keep track for once</span>
             </h2>
             <div className="flex flex-col items-center gap-6">
-              <ConnectButton className="px-10 py-5 text-xl" />
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <ConnectButton className="px-10 py-5 text-xl" />
+                <a 
+                  href="/waitlist" 
+                  className="text-base font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-4 transition-colors"
+                >
+                  Get on waiting list
+                </a>
+              </div>
             </div>
           </FadeIn>
         </div>
