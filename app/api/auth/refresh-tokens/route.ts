@@ -17,6 +17,20 @@ import { createClient } from '@supabase/supabase-js'
  * POST /api/auth/refresh-tokens?hoursBeforeExpiry=24&provider=google
  * Headers: Authorization: Bearer <N8N_API_KEY>
  */
+
+// Helper to add no-cache headers to all responses
+function jsonResponse(data: any, init?: ResponseInit) {
+  return NextResponse.json(data, {
+    ...init,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      ...(init?.headers || {})
+    }
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Authenticate via API key
@@ -25,7 +39,7 @@ export async function POST(request: NextRequest) {
     const expectedApiKey = process.env.N8N_API_KEY
 
     if (!apiKey || !expectedApiKey || apiKey !== expectedApiKey) {
-      return NextResponse.json(
+      return jsonResponse(
         { error: 'Unauthorized - Invalid or missing API key' },
         { status: 401 }
       )
@@ -35,7 +49,7 @@ export async function POST(request: NextRequest) {
     
     if (!serviceRoleKey) {
       console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
-      return NextResponse.json(
+      return jsonResponse(
         { error: 'Server configuration error' },
         { status: 500 }
       )
@@ -56,7 +70,7 @@ export async function POST(request: NextRequest) {
     const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
 
     if (!googleClientId || !googleClientSecret) {
-      return NextResponse.json(
+      return jsonResponse(
         { error: 'Google OAuth credentials not configured' },
         { status: 500 }
       )
@@ -75,14 +89,14 @@ export async function POST(request: NextRequest) {
 
     if (queryError) {
       console.error('Error querying expiring tokens:', queryError)
-      return NextResponse.json(
+      return jsonResponse(
         { error: 'Failed to query tokens' },
         { status: 500 }
       )
     }
 
     if (!expiringTokens || expiringTokens.length === 0) {
-      return NextResponse.json({
+      return jsonResponse({
         success: true,
         message: 'No tokens need refreshing',
         refreshed: 0,
@@ -185,7 +199,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       message: `Refreshed ${results.refreshed} tokens, ${results.failed} failed`,
       refreshed: results.refreshed,
@@ -196,7 +210,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error in refresh-tokens endpoint:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { error: 'Internal server error', message: error.message },
       { status: 500 }
     )

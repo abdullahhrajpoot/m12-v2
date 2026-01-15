@@ -22,6 +22,19 @@ import * as Sentry from '@sentry/nextjs'
 // Force dynamic rendering - this route uses request.headers and cookies
 export const dynamic = 'force-dynamic'
 
+// Helper to add no-cache headers to all responses
+function jsonResponse(data: any, init?: ResponseInit) {
+  return NextResponse.json(data, {
+    ...init,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      ...(init?.headers || {})
+    }
+  })
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Check for API key authentication (for n8n service-to-service)
@@ -39,7 +52,7 @@ export async function GET(request: NextRequest) {
       const provider = searchParams.get('provider') || 'google'
       
       if (!userId) {
-        return NextResponse.json(
+        return jsonResponse(
           { error: 'userId query parameter required when using API key' },
           { status: 400 }
         )
@@ -50,7 +63,7 @@ export async function GET(request: NextRequest) {
       
       if (!serviceRoleKey) {
         console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
-        return NextResponse.json(
+        return jsonResponse(
           { error: 'Server configuration error' },
           { status: 500 }
         )
@@ -71,7 +84,7 @@ export async function GET(request: NextRequest) {
         .single()
 
       if (tokenError || !tokenData) {
-        return NextResponse.json(
+        return jsonResponse(
           { error: 'OAuth tokens not found for this user. Please complete OAuth setup.' },
           { status: 404 }
         )
@@ -149,7 +162,7 @@ export async function GET(request: NextRequest) {
                 console.log('✅ Token refreshed successfully for user:', userId)
                 
                 // Return the refreshed token
-                return NextResponse.json({
+                return jsonResponse({
                   provider: tokenData.provider,
                   access_token: refreshedData.access_token,
                   refresh_token: refreshedData.refresh_token || tokenData.refresh_token,
@@ -168,7 +181,7 @@ export async function GET(request: NextRequest) {
               console.log('🔍 DEBUG H3 - Token refresh FAILED:', JSON.stringify({userId,status:refreshResponse.status,errorText:errorText.substring(0,200)}));
               // #endregion
               // If refresh fails, token is invalid - user needs to re-auth
-              return NextResponse.json({
+              return jsonResponse({
                 error: 'Token expired and refresh failed. Please re-authenticate.',
                 is_expired: true,
                 needs_reauth: true,
@@ -178,7 +191,7 @@ export async function GET(request: NextRequest) {
           } catch (refreshError) {
             console.error('❌ Error refreshing token:', refreshError)
             // Return error instead of silently continuing
-            return NextResponse.json({
+            return jsonResponse({
               error: 'Token refresh failed. Please re-authenticate.',
               is_expired: true,
               needs_reauth: true,
@@ -192,7 +205,7 @@ export async function GET(request: NextRequest) {
       console.log('🔍 DEBUG H1 - Returning token to n8n:', JSON.stringify({userId,isExpired,was_refreshed:false,access_token_prefix:tokenData.access_token?.substring(0,20),expires_at:tokenData.expires_at}));
       // #endregion
 
-      return NextResponse.json({
+      return jsonResponse({
         provider: tokenData.provider,
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
@@ -223,7 +236,7 @@ export async function GET(request: NextRequest) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
       if (authError || !user) {
-        return NextResponse.json(
+        return jsonResponse(
           { error: 'Unauthorized' },
           { status: 401 }
         )
@@ -244,14 +257,14 @@ export async function GET(request: NextRequest) {
         .single()
 
       if (tokenError || !tokenData) {
-        return NextResponse.json(
+        return jsonResponse(
           { error: 'OAuth tokens not found. Please complete OAuth setup.' },
           { status: 404 }
         )
       }
 
       // Don't return full token details for user requests (security)
-      return NextResponse.json({
+      return jsonResponse({
         provider: tokenData.provider,
         has_token: !!tokenData.access_token,
         expires_at: tokenData.expires_at,
@@ -265,7 +278,7 @@ export async function GET(request: NextRequest) {
       tags: { route: '/api/auth/tokens' },
       extra: { method: 'GET' }
     })
-    return NextResponse.json(
+    return jsonResponse(
       { error: 'Internal server error' },
       { status: 500 }
     )
