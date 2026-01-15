@@ -245,6 +245,13 @@ export async function GET(request: Request) {
   }
 
   // URL to redirect to after sign in process completes
-  return NextResponse.redirect(new URL(next, appUrl))
+  const response = NextResponse.redirect(new URL(next, appUrl))
+  
+  // CRITICAL: Prevent Railway from caching OAuth responses
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
+  response.headers.set('Pragma', 'no-cache')
+  response.headers.set('Expires', '0')
+  
+  return response
 }
 
