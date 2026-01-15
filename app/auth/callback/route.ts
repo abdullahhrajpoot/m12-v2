@@ -82,7 +82,8 @@ export async function GET(request: Request) {
                      sessionData.session.user.user_metadata?.name || null
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:75',message:'Extracted token values',data:{userId,userEmail,hasProviderToken:!!providerToken,providerTokenLength:providerToken?.length||0,hasRefreshToken:!!providerRefreshToken,provider,expiresAt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      console.log('🔍 DEBUG H1 - Extracted token values:', JSON.stringify({userId,userEmail,hasProviderToken:!!providerToken,providerTokenLength:providerToken?.length||0,tokenPrefix:providerToken?.substring(0,30),tokenSuffix:providerToken?.substring(providerToken.length-20),hasRefreshToken:!!providerRefreshToken,refreshTokenPrefix:providerRefreshToken?.substring(0,20),provider,expiresAt}));
+      fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:75',message:'Extracted token values',data:{userId,userEmail,hasProviderToken:!!providerToken,providerTokenLength:providerToken?.length||0,tokenPrefix:providerToken?.substring(0,30),tokenSuffix:providerToken?.substring(providerToken.length-20),hasRefreshToken:!!providerRefreshToken,refreshTokenPrefix:providerRefreshToken?.substring(0,20),provider,expiresAt},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H1'})}).catch(()=>{});
       // #endregion
     }
   } else {
@@ -155,12 +156,18 @@ export async function GET(request: Request) {
         if (insertError) {
           console.error('Error storing OAuth tokens:', insertError)
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:140',message:'Token storage failed',data:{error:insertError.message,code:insertError.code,details:insertError.details},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:140',message:'Token storage failed',data:{error:insertError.message,code:insertError.code,details:insertError.details},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H2'})}).catch(()=>{});
           // #endregion
         } else {
           console.log('OAuth tokens stored successfully for user:', userId, 'provider:', provider)
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:142',message:'Token storage succeeded',data:{userId,provider},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          console.log('🔍 DEBUG H2 - Token storage succeeded - BEFORE DB verification:', JSON.stringify({userId,provider,storedTokenPrefix:providerToken?.substring(0,30),storedTokenLength:providerToken?.length}));
+          fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:142',message:'Token storage succeeded - BEFORE DB verification',data:{userId,provider,storedTokenPrefix:providerToken?.substring(0,30),storedTokenLength:providerToken?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+          
+          // #region agent log
+          // Immediately verify what was stored in the database
+          supabaseAdmin.from('oauth_tokens').select('access_token').eq('user_id',userId).eq('provider',provider).single().then(({data:verifyData,error:verifyError})=>{console.log('🔍 DEBUG H2 - Token verification - AFTER DB read:',JSON.stringify({userId,hasError:!!verifyError,retrievedTokenPrefix:verifyData?.access_token?.substring(0,30),retrievedTokenLength:verifyData?.access_token?.length,tokensMatch:verifyData?.access_token===providerToken}));fetch('http://127.0.0.1:7242/ingest/5beb2915-5867-4232-9971-7d67e3e68583',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/callback/route.ts:165',message:'Token verification - AFTER DB read',data:{userId,hasError:!!verifyError,retrievedTokenPrefix:verifyData?.access_token?.substring(0,30),retrievedTokenLength:verifyData?.access_token?.length,tokensMatch:verifyData?.access_token===providerToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H2'})}).catch(()=>{});});
           // #endregion
         }
       } catch (tokenError) {
