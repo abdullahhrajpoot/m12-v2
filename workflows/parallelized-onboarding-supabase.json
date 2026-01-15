@@ -113,15 +113,28 @@
             { "name": "provider", "value": "google" }
           ]
         },
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $vars.N8N_API_KEY }}" }] },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "options": {}
       },
       "name": "Get Token from Supabase",
-      "id": "get-token",
+      "id": "bb99c021-0fd7-4f73-8457-548368925590",
       "typeVersion": 4.3,
-      "position": [288, 112],
+      "position": [1056, 9680],
       "type": "n8n-nodes-base.httpRequest",
+      "alwaysOutputData": true,
+      "credentials": { "httpHeaderAuth": { "id": "fi07FJETSwEJ0A5u", "name": "N8N API Key" } }
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "name": "Wait After Token Refresh",
+      "id": "retry-delay-after-token",
+      "typeVersion": 1.1,
+      "position": [1200, 9680],
+      "type": "n8n-nodes-base.wait",
       "alwaysOutputData": true
     },
     {
@@ -183,12 +196,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse entity-based AI output into sentence array\n// Use robust $() syntax for reliable node reference\nlet userId = null;\ntry {\n  userId = $('Supabase OAuth Webhook').first().json.body.userId;\n} catch (e) {\n  // Fallback to input data\n  const items = $input.all();\n  if (items.length > 0 && items[0].json && items[0].json.userId) {\n    userId = items[0].json.userId;\n  }\n}\n\nconst items = $input.all();\nconst allFacts = [];\n\n// Regex to detect entity headers: \"Name (type)\" format\nconst entityHeaderRegex = /^(.+?)\\s*\\((child|teacher|activity|parent|coach|other|school|organization)\\)$/i;\n\nfor (const item of items) {\n  let outputText = '';\n  \n  // Extract output from AI agent\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else {\n    continue;\n  }\n  \n  // Split by lines and parse both formats:\n  // Format 1 (bullet): \"[Entity Name]\\n- fact 1\\n- fact 2\"\n  // Format 2 (plain): \"Entity Name (type)\\nfact 1.\\nfact 2.\"\n  const lines = outputText.split('\\n');\n  let currentEntity = null;\n  let inEntitySection = false;\n  \n  for (const line of lines) {\n    const trimmed = line.trim();\n    \n    // Skip empty lines (but DON'T reset entity section - empty lines are just separators)\n    if (!trimmed) {\n      continue;\n    }\n    \n    // Check if this is an entity header (Format 2: \"Name (type)\")\n    const entityMatch = trimmed.match(entityHeaderRegex);\n    if (entityMatch) {\n      currentEntity = entityMatch[1].trim(); // Entity name without the (type) part\n      inEntitySection = true;\n      continue;\n    }\n    \n    // Check if this is an entity header (Format 1: \"[Entity Name]\")\n    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {\n      currentEntity = trimmed.replace(/[\\[\\]]/g, '').trim();\n      inEntitySection = true;\n      continue;\n    }\n    \n    // Check if this is a bullet format fact (Format 1: \"- fact\" or \"• fact\")\n    if (trimmed.startsWith('-') || trimmed.startsWith('•')) {\n      let fact = trimmed.replace(/^[-•]\\s*/, '').trim();\n      \n      if (fact && fact.length > 5) {\n        // Ensure fact ends with punctuation\n        if (!fact.match(/[.!?]$/)) {\n          fact += '.';\n        }\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        \n        allFacts.push(fact);\n      }\n      continue;\n    }\n    \n    // Check if this is a plain sentence format fact (Format 2: ends with punctuation)\n    // Only extract if we're in an entity section (after an entity header)\n    if (inEntitySection && trimmed.match(/[.!?]$/)) {\n      // Must be a complete sentence: ends with punctuation and has minimum length\n      if (trimmed.length >= 10) {\n        let fact = trimmed;\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          // Avoid duplication: if entity name is already in the sentence, don't prefix it\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        \n        allFacts.push(fact);\n      }\n    }\n  }\n}\n\n// Deduplicate facts (case-insensitive)\nconst uniqueFacts = [];\nconst seenFacts = new Set();\n\nfor (const fact of allFacts) {\n  const normalized = fact.toLowerCase().trim();\n  if (!seenFacts.has(normalized)) {\n    seenFacts.add(normalized);\n    uniqueFacts.push(fact);\n  }\n}\n\n// Return sentences with userId preserved\nreturn [{\n  json: {\n    sentences: uniqueFacts,\n    userId: userId,\n    total_facts: uniqueFacts.length,\n    raw_output: items.map(i => i.json?.output || i.json?.text || '').join('\\n\\n---\\n\\n').substring(0, 1000)\n  }\n}];"
+        "jsCode": "// Parse entity-based AI output into sentence array\n// Use robust $() syntax for reliable node reference\nlet userId = null;\ntry {\n  userId = $('Supabase OAuth Webhook').first().json.body.userId;\n} catch (e) {\n  // Fallback to input data\n  const items = $input.all();\n  if (items.length > 0 && items[0].json && items[0].json.userId) {\n    userId = items[0].json.userId;\n  }\n}\n\nconst items = $input.all();\nconst allFacts = [];\n\n// Regex to detect entity headers: \"Name (type)\" format\nconst entityHeaderRegex = /^(.+?)\\s*\\((child|teacher|activity|parent|coach|other|school|organization|person)\\)$/i;\n\nfor (const item of items) {\n  let outputText = '';\n  \n  // Extract output from AI agent\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else {\n    continue;\n  }\n  \n  // Split by lines and parse both formats:\n  // Format 1 (bullet): \"[Entity Name]\\n- fact 1\\n- fact 2\"\n  // Format 2 (plain): \"Entity Name (type)\\nfact 1.\\nfact 2.\"\n  const lines = outputText.split('\\n');\n  let currentEntity = null;\n  let inEntitySection = false;\n  \n  for (const line of lines) {\n    const trimmed = line.trim();\n    \n    // Skip empty lines (but DON'T reset entity section - empty lines are just separators)\n    if (!trimmed) {\n      continue;\n    }\n    \n    // Check if this is an entity header (Format 2: \"Name (type)\")\n    const entityMatch = trimmed.match(entityHeaderRegex);\n    if (entityMatch) {\n      currentEntity = entityMatch[1].trim(); // Entity name without the (type) part\n      inEntitySection = true;\n      continue;\n    }\n    \n    // Check if this is an entity header (Format 1: \"[Entity Name]\")\n    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {\n      currentEntity = trimmed.replace(/[\\[\\]]/g, '').trim();\n      inEntitySection = true;\n      continue;\n    }\n    \n    // Check if this is a bullet format fact (Format 1: \"- fact\" or \"• fact\")\n    if (trimmed.startsWith('-') || trimmed.startsWith('•')) {\n      let fact = trimmed.replace(/^[-•]\\s*/, '').trim();\n      \n      if (fact && fact.length > 5) {\n        // Ensure fact ends with punctuation\n        if (!fact.match(/[.!?]$/)) {\n          fact += '.';\n        }\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        \n        allFacts.push(fact);\n      }\n      continue;\n    }\n    \n    // Check if this is a plain sentence format fact (Format 2: ends with punctuation)\n    // Only extract if we're in an entity section (after an entity header)\n    if (inEntitySection && trimmed.match(/[.!?]$/)) {\n      // Must be a complete sentence: ends with punctuation and has minimum length\n      if (trimmed.length >= 10) {\n        let fact = trimmed;\n        \n        // Add entity context if we have it and it's not already in the fact\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          // Avoid duplication: if entity name is already in the sentence, don't prefix it\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        \n        allFacts.push(fact);\n      }\n    }\n  }\n}\n\n// Deduplicate facts (case-insensitive)\nconst uniqueFacts = [];\nconst seenFacts = new Set();\n\nfor (const fact of allFacts) {\n  const normalized = fact.toLowerCase().trim();\n  if (!seenFacts.has(normalized)) {\n    seenFacts.add(normalized);\n    uniqueFacts.push(fact);\n  }\n}\n\n// Ensure sentences is always an array\nconst sentencesArray = Array.isArray(uniqueFacts) ? uniqueFacts : [];\n\n// Return sentences with userId preserved\nreturn [{\n  json: {\n    sentences: sentencesArray,\n    userId: userId,\n    total_facts: sentencesArray.length,\n    raw_output: items.map(i => i.json?.output || i.json?.text || '').join('\\n\\n---\\n\\n').substring(0, 1000)\n  }\n}];"
       },
       "name": "Parse Sentences Array",
-      "id": "parse-sentences",
+      "id": "b800875c-f4b7-4a3e-b3a4-a81d1874e785",
       "typeVersion": 2,
-      "position": [2416, -48],
+      "position": [3184, 9520],
       "type": "n8n-nodes-base.code",
       "alwaysOutputData": true
     },
@@ -198,12 +211,12 @@
         "tableId": "onboarding_summaries",
         "matchType": "allFilters",
         "filters": { "conditions": [{ "keyName": "user_id", "condition": "eq", "keyValue": "={{ $json.userId }}" }] },
-        "fieldsUi": { "fieldValues": [{ "fieldId": "summary_sentences", "fieldValue": "={{ $json.sentences }}" }] }
+        "fieldsUi": { "fieldValues": [{ "fieldId": "summary_sentences", "fieldValue": "={{ Array.isArray($json.sentences) ? $json.sentences : [] }}" }] }
       },
       "name": "Save Onboarding Summaries",
-      "id": "save-summaries",
+      "id": "94189d0e-4d3d-41f6-bd06-25acf0e3b721",
       "typeVersion": 1,
-      "position": [2624, -176],
+      "position": [3392, 9392],
       "type": "n8n-nodes-base.supabase",
       "alwaysOutputData": true,
       "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
@@ -232,14 +245,14 @@
         "fieldsUi": {
           "fieldValues": [
             { "fieldId": "user_id", "fieldValue": "={{ $json.userId }}" },
-            { "fieldId": "summary_sentences", "fieldValue": "={{ $json.sentences }}" }
+            { "fieldId": "summary_sentences", "fieldValue": "={{ Array.isArray($json.sentences) ? $json.sentences : [] }}" }
           ]
         }
       },
       "name": "Insert Onboarding Summaries",
-      "id": "insert-summaries",
+      "id": "d9fdad27-49bb-43ca-a7f0-f0fa7413dd6a",
       "typeVersion": 1,
-      "position": [3184, 400],
+      "position": [3952, 9968],
       "type": "n8n-nodes-base.supabase",
       "alwaysOutputData": true,
       "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
@@ -323,13 +336,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Aggregate results from 5 period-based Gmail searches\n// Tag messages with source period for analytics\n// Input order: Recent(0), BackToSchool(1), Fall(2), Winter(3), Spring(4)\nconst items = $input.all();\nconst periodNames = ['recent', 'backtoschool', 'fall', 'winter', 'spring'];\n\n// Collect messages and tag with period source\nconst seenIds = new Set();\nconst uniqueMessages = [];\n\nlet itemIndex = 0;\nfor (const item of items) {\n  if (item.json && item.json.messages && Array.isArray(item.json.messages)) {\n    const period = periodNames[itemIndex] || 'unknown';\n    \n    for (const msg of item.json.messages) {\n      // Skip duplicates (same email might match multiple period searches)\n      if (msg.id && !seenIds.has(msg.id)) {\n        seenIds.add(msg.id);\n        uniqueMessages.push({\n          ...msg,\n          _source: period\n        });\n      }\n    }\n    itemIndex++;\n  }\n}\n\n// Return aggregated result with period tags\nreturn [{\n  json: {\n    messages: uniqueMessages,\n    resultSizeEstimate: uniqueMessages.length,\n    periodCounts: {\n      recent: uniqueMessages.filter(m => m._source === 'recent').length,\n      backtoschool: uniqueMessages.filter(m => m._source === 'backtoschool').length,\n      fall: uniqueMessages.filter(m => m._source === 'fall').length,\n      winter: uniqueMessages.filter(m => m._source === 'winter').length,\n      spring: uniqueMessages.filter(m => m._source === 'spring').length\n    }\n  }\n}];"
+        "jsCode": "// Aggregate results from 5 period-based Gmail searches\n// Tag messages with source period for analytics\n// Input order: Recent(0), BackToSchool(1), Fall(2), Winter(3), Spring(4)\n// Handle auth errors by checking for auth_error flag\nconst items = $input.all();\nconst periodNames = ['recent', 'backtoschool', 'fall', 'winter', 'spring'];\n\n// Check for auth errors first\nlet hasAuthError = false;\nfor (const item of items) {\n  if (item.json && (item.json.auth_error || item.json.processing_status === 'auth-issues')) {\n    hasAuthError = true;\n    break;\n  }\n}\n\nif (hasAuthError) {\n  return [{\n    json: {\n      messages: [],\n      resultSizeEstimate: 0,\n      processing_status: 'auth-issues',\n      auth_error: true\n    }\n  }];\n}\n\n// Collect messages and tag with period source\nconst seenIds = new Set();\nconst uniqueMessages = [];\n\nlet itemIndex = 0;\nfor (const item of items) {\n  if (item.json && item.json.messages && Array.isArray(item.json.messages)) {\n    const period = periodNames[itemIndex] || 'unknown';\n    \n    for (const msg of item.json.messages) {\n      // Skip duplicates (same email might match multiple period searches)\n      if (msg.id && !seenIds.has(msg.id)) {\n        seenIds.add(msg.id);\n        uniqueMessages.push({\n          ...msg,\n          _source: period\n        });\n      }\n    }\n    itemIndex++;\n  }\n}\n\n// Return aggregated result with period tags\nreturn [{\n  json: {\n    messages: uniqueMessages,\n    resultSizeEstimate: uniqueMessages.length,\n    periodCounts: {\n      recent: uniqueMessages.filter(m => m._source === 'recent').length,\n      backtoschool: uniqueMessages.filter(m => m._source === 'backtoschool').length,\n      fall: uniqueMessages.filter(m => m._source === 'fall').length,\n      winter: uniqueMessages.filter(m => m._source === 'winter').length,\n      spring: uniqueMessages.filter(m => m._source === 'spring').length\n    }\n  }\n}];"
       },
-      "id": "aggregate-gmail-results",
+      "id": "f1f06fa1-30a3-4fca-84e8-105491ee7f28",
       "name": "Aggregate Gmail Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [832, 208],
+      "position": [1600, 9776],
       "alwaysOutputData": true
     },
     {
@@ -372,7 +385,9 @@
         "queryParameters": {
           "parameters": [
             { "name": "format", "value": "metadata" },
-            { "name": "metadataHeaders", "value": "Date,From,Subject" }
+            { "name": "metadataHeaders", "value": "Date" },
+            { "name": "metadataHeaders", "value": "From" },
+            { "name": "metadataHeaders", "value": "Subject" }
           ]
         },
         "sendHeaders": true,
@@ -430,7 +445,7 @@
         "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
         "options": {}
       },
-      "id": "search-recent",
+      "id": "86e09b8b-065e-4a51-9ef7-4196f1d36808",
       "name": "Search Gmail - Recent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -451,7 +466,7 @@
         "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
         "options": {}
       },
-      "id": "search-backtoschool",
+      "id": "29a7d29c-c3b0-4fb8-a066-736b4fcac0fe",
       "name": "Search Gmail - BackToSchool",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -472,7 +487,7 @@
         "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
         "options": {}
       },
-      "id": "search-fall",
+      "id": "74a2103b-f62d-48b9-8689-f53fc1143166",
       "name": "Search Gmail - Fall",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -493,7 +508,7 @@
         "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
         "options": {}
       },
-      "id": "search-winter",
+      "id": "e4cb73f8-19bd-42b2-80da-d67864016891",
       "name": "Search Gmail - Winter",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -514,7 +529,7 @@
         "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Get Token from Supabase').first().json.access_token }}" }] },
         "options": {}
       },
-      "id": "search-spring",
+      "id": "1a5b5319-7130-4d16-8d31-17ba75c5184a",
       "name": "Search Gmail - Spring",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -523,15 +538,102 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// Collect results from all 5 parallel Gmail searches\nconst items = $input.all();\nconst allMessages = [];\n\nfor (const item of items) {\n  if (item.json?.messages && Array.isArray(item.json.messages)) {\n    allMessages.push(...item.json.messages);\n  }\n}\n\nreturn [{\n  json: {\n    messages: allMessages,\n    resultSizeEstimate: allMessages.length\n  }\n}];"
+        "mode": "append",
+        "options": {
+          "keepOnlySet": false
+        }
       },
-      "id": "wait-for-searches",
-      "name": "Wait For All Searches",
-      "type": "n8n-nodes-base.code",
+      "id": "merge-1",
+      "name": "Merge 1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1504, 9728],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {
+          "keepOnlySet": false
+        }
+      },
+      "id": "merge-2",
+      "name": "Merge 2",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1648, 9728],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {
+          "keepOnlySet": false
+        }
+      },
+      "id": "merge-3",
+      "name": "Merge 3",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1792, 9728],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {
+          "keepOnlySet": false
+        }
+      },
+      "id": "merge-4",
+      "name": "Merge 4",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1936, 9728],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Catch 401/auth errors from Gmail search nodes\nconst items = $input.all();\nconst results = [];\nfor (const item of items) {\n  const data = item.json || {};\n  const isAuthError =\n    data.statusCode === 401 ||\n    data.error?.code === 401 ||\n    data.error?.status === 'UNAUTHENTICATED' ||\n    (data.error?.message && data.error.message.includes('authentication')) ||\n    (data.error?.message && data.error.message.includes('Invalid Credentials')) ||\n    (data.body?.error?.code === 401) ||\n    (data.body?.error?.status === 'UNAUTHENTICATED');\n  if (isAuthError) {\n    results.push({ json: { ...data, auth_error: true, processing_status: 'auth-issues', error_type: 'authentication', error_message: data.error?.message || data.body?.error?.message || 'Authentication failed' } });\n  } else {\n    results.push(item);\n  }\n}\nreturn results.length > 0 ? results : [];"
+      },
+      "name": "Catch Auth Errors",
+      "id": "catch-auth-errors",
       "typeVersion": 2,
-      "position": [736, 160],
+      "position": [1500, 9488],
+      "type": "n8n-nodes-base.code",
       "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [{ "id": "check-auth-error", "leftValue": "={{ $json.auth_error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Auth Error?",
+      "id": "check-auth-error",
+      "typeVersion": 2.3,
+      "position": [1600, 9488],
+      "type": "n8n-nodes-base.if",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "users",
+        "matchType": "allFilters",
+        "filters": { "conditions": [{ "keyName": "id", "condition": "eq", "keyValue": "={{ $('Supabase OAuth Webhook').item.json.body.userId }}" }] },
+        "fieldsUi": { "fieldValues": [{ "fieldId": "status", "fieldValue": "auth_issues" }] }
+      },
+      "name": "Mark Auth Issues in DB",
+      "id": "mark-auth-issues",
+      "typeVersion": 1,
+      "position": [1700, 9488],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
     }
   ],
   "connections": {
@@ -561,13 +663,19 @@
     "Aggregate Metadata": { "main": [[{ "node": "Filter and Score Emails", "type": "main", "index": 0 }]] },
     "Filter and Score Emails": { "main": [[{ "node": "Select 60 Emails", "type": "main", "index": 0 }]] },
     "Check Update Result": { "main": [[{ "node": "Insert Onboarding Summaries", "type": "main", "index": 0 }]] },
-    "Get Token from Supabase": { "main": [[{ "node": "Search Gmail - Recent", "type": "main", "index": 0 }, { "node": "Search Gmail - BackToSchool", "type": "main", "index": 0 }, { "node": "Search Gmail - Fall", "type": "main", "index": 0 }, { "node": "Search Gmail - Winter", "type": "main", "index": 0 }, { "node": "Search Gmail - Spring", "type": "main", "index": 0 }]] },
-    "Search Gmail - Recent": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
-    "Search Gmail - BackToSchool": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
-    "Search Gmail - Fall": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
-    "Search Gmail - Winter": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
-    "Search Gmail - Spring": { "main": [[{ "node": "Wait For All Searches", "type": "main", "index": 0 }]] },
-    "Wait For All Searches": { "main": [[{ "node": "Aggregate Gmail Results", "type": "main", "index": 0 }]] }
+    "Get Token from Supabase": { "main": [[{ "node": "Wait After Token Refresh", "type": "main", "index": 0 }]] },
+    "Wait After Token Refresh": { "main": [[{ "node": "Search Gmail - Recent", "type": "main", "index": 0 }, { "node": "Search Gmail - BackToSchool", "type": "main", "index": 0 }, { "node": "Search Gmail - Fall", "type": "main", "index": 0 }, { "node": "Search Gmail - Winter", "type": "main", "index": 0 }, { "node": "Search Gmail - Spring", "type": "main", "index": 0 }]] },
+    "Search Gmail - Recent": { "main": [[{ "node": "Merge 1", "type": "main", "index": 0 }]] },
+    "Search Gmail - BackToSchool": { "main": [[{ "node": "Merge 1", "type": "main", "index": 1 }]] },
+    "Merge 1": { "main": [[{ "node": "Merge 2", "type": "main", "index": 0 }]] },
+    "Search Gmail - Fall": { "main": [[{ "node": "Merge 2", "type": "main", "index": 1 }]] },
+    "Merge 2": { "main": [[{ "node": "Merge 3", "type": "main", "index": 0 }]] },
+    "Search Gmail - Winter": { "main": [[{ "node": "Merge 3", "type": "main", "index": 1 }]] },
+    "Merge 3": { "main": [[{ "node": "Merge 4", "type": "main", "index": 0 }]] },
+    "Search Gmail - Spring": { "main": [[{ "node": "Merge 4", "type": "main", "index": 1 }]] },
+    "Merge 4": { "main": [[{ "node": "Catch Auth Errors", "type": "main", "index": 0 }]] },
+    "Catch Auth Errors": { "main": [[{ "node": "Has Auth Error?", "type": "main", "index": 0 }]] },
+    "Has Auth Error?": { "main": [[{ "node": "Mark Auth Issues in DB", "type": "main", "index": 0 }], [{ "node": "Aggregate Gmail Results", "type": "main", "index": 0 }]] }
   },
   "settings": {
     "executionOrder": "v1",
