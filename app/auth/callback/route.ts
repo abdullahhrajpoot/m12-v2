@@ -217,8 +217,12 @@ export async function GET(request: Request) {
     
     // ALWAYS trigger n8n onboarding workflow (moved outside serviceRoleKey check)
     // This ensures user status is updated from needs_reauth to active
-    const n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
+    let n8nWebhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 
       'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
+    
+    // Normalize URL: remove trailing slashes and fix double slashes (except after http:// or https://)
+    n8nWebhookUrl = n8nWebhookUrl.replace(/\/+$/, '') // Remove trailing slashes
+      .replace(/([^:]\/)\/+/g, '$1') // Remove double slashes except after ://
     
     console.log('📞 Triggering n8n webhook for user:', userId, 'email:', userEmail, 'webhook:', n8nWebhookUrl)
     console.log('📞 Webhook payload:', { userId, email: userEmail, fullName: userFullName })
