@@ -135,7 +135,21 @@ export async function GET(request: NextRequest) {
             })
 
             if (refreshResponse.ok) {
-              const refreshedData = await refreshResponse.json()
+              // Parse response - ensure it's an object, not a string
+              let refreshedData: any
+              try {
+                const responseText = await refreshResponse.text()
+                refreshedData = JSON.parse(responseText)
+              } catch (parseError) {
+                console.error('❌ Failed to parse refresh response:', parseError)
+                throw new Error('Invalid response from Google token refresh')
+              }
+              
+              // Validate response structure
+              if (!refreshedData || typeof refreshedData !== 'object' || !refreshedData.access_token) {
+                console.error('❌ Invalid refresh response structure:', refreshedData)
+                throw new Error('Google token refresh returned invalid response')
+              }
               
               // Calculate new expiration time (Google tokens typically expire in 1 hour)
               const newExpiresAt = refreshedData.expires_in
