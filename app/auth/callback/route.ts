@@ -221,29 +221,42 @@ export async function GET(request: Request) {
       'https://chungxchung.app.n8n.cloud/webhook/parallelized-supabase-oauth'
     
     console.log('📞 Triggering n8n webhook for user:', userId, 'email:', userEmail, 'webhook:', n8nWebhookUrl)
+    console.log('📞 Webhook payload:', { userId, email: userEmail, fullName: userFullName })
     
     // Call webhook - await it to ensure it completes before redirect
     try {
+      const webhookPayload = {
+        userId: userId,
+        email: userEmail,
+        fullName: userFullName,
+      }
+      
+      console.log('📞 Making webhook request to:', n8nWebhookUrl)
+      
       const webhookResponse = await fetch(n8nWebhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId: userId,
-          email: userEmail,
-          fullName: userFullName,
-        }),
+        body: JSON.stringify(webhookPayload),
       })
+      
+      console.log('📞 Webhook response status:', webhookResponse.status, webhookResponse.statusText)
       
       const responseText = await webhookResponse.text()
       if (!webhookResponse.ok) {
         console.error('❌ n8n webhook returned error status:', webhookResponse.status, 'response:', responseText)
       } else {
-        console.log('✅ n8n onboarding webhook triggered successfully for user:', userId, 'response:', responseText.substring(0, 200))
+        console.log('✅ n8n onboarding webhook triggered successfully for user:', userId, 'response length:', responseText.length)
+        console.log('✅ Webhook response (first 500 chars):', responseText.substring(0, 500))
       }
     } catch (webhookError) {
       console.error('❌ Error calling n8n onboarding webhook:', webhookError)
+      console.error('❌ Webhook error details:', {
+        message: webhookError instanceof Error ? webhookError.message : String(webhookError),
+        stack: webhookError instanceof Error ? webhookError.stack : undefined,
+        url: n8nWebhookUrl
+      })
     }
   } else {
     console.error('❌ No userId - cannot trigger webhook!')
