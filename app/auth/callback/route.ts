@@ -35,9 +35,14 @@ export async function GET(request: Request) {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
+            cookiesToSet.forEach(({ name, value, options }) => {
+              // Set cookies for root domain to work across subdomains
+              const cookieOptions = {
+                ...options,
+                domain: '.bippity.boo', // Note the leading dot - this makes it work for all subdomains
+              }
+              cookieStore.set(name, value, cookieOptions)
+            })
           } catch {
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing

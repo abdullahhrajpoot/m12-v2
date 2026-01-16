@@ -26,10 +26,15 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: any) {
+          // Set cookies for root domain to work across subdomains
+          const cookieOptions = {
+            ...options,
+            domain: '.bippity.boo', // Leading dot makes it work for all subdomains
+          }
           request.cookies.set({
             name,
             value,
-            ...options,
+            ...cookieOptions,
           })
           response = NextResponse.next({
             request: {
@@ -39,14 +44,19 @@ export async function middleware(request: NextRequest) {
           response.cookies.set({
             name,
             value,
-            ...options,
+            ...cookieOptions,
           })
         },
         remove(name: string, options: any) {
+          // Remove cookies from root domain
+          const cookieOptions = {
+            ...options,
+            domain: '.bippity.boo',
+          }
           request.cookies.set({
             name,
             value: '',
-            ...options,
+            ...cookieOptions,
           })
           response = NextResponse.next({
             request: {
@@ -56,7 +66,7 @@ export async function middleware(request: NextRequest) {
           response.cookies.set({
             name,
             value: '',
-            ...options,
+            ...cookieOptions,
           })
         },
       },
