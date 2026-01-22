@@ -342,9 +342,74 @@ export default function WhatWeFound() {
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveTimedOut, setSaveTimedOut] = useState(false)
+  const [checkingAccount, setCheckingAccount] = useState(false)
   const router = useRouter()
 
   const EXPECTED_DURATION = 180 // 3 minutes maximum wait time
+
+  // Check for pending Unipile account creation
+  useEffect(() => {
+    const checkAccountStatus = async () => {
+      // Get session_id from URL params or cookie
+      const urlParams = new URLSearchParams(window.location.search)
+      const sessionId = urlParams.get('session')
+      
+      if (!sessionId) {
+        // No pending session, proceed with normal flow
+        return
+      }
+
+      setCheckingAccount(true)
+      let pollCount = 0
+      const maxPolls = 100 // 5 minutes max (100 * 3 seconds)
+      let pollInterval: NodeJS.Timeout
+
+      const poll = async () => {
+        if (pollCount >= maxPolls) {
+          setCheckingAccount(false)
+          setError('Account creation is taking longer than expected. Please try signing up again.')
+          clearInterval(pollInterval)
+          return
+        }
+
+        try {
+          const response = await fetch(`/api/auth/unipile/check-status?session_id=${sessionId}`)
+          const data = await response.json()
+
+          if (data.status === 'created' && data.account_id) {
+            // Account found! The callback route should have already handled user creation
+            // But we can trigger onboarding workflow if needed
+            setCheckingAccount(false)
+            clearInterval(pollInterval)
+            
+            // Account is ready, continue with normal onboarding flow
+            console.log('✅ Unipile account created:', data.account_id)
+          } else if (data.status === 'pending') {
+            // Still waiting, continue polling
+            pollCount++
+          } else {
+            // Error or unknown status
+            console.warn('Unexpected account status:', data)
+            pollCount++
+          }
+        } catch (err) {
+          console.error('Error checking account status:', err)
+          pollCount++
+        }
+      }
+
+      // Start polling immediately, then every 3 seconds
+      poll()
+      pollInterval = setInterval(poll, 3000)
+
+      // Cleanup on unmount
+      return () => {
+        clearInterval(pollInterval)
+      }
+    }
+
+    checkAccountStatus()
+  }, [])
 
   // Fetch random tip on mount
   useEffect(() => {
@@ -364,6 +429,11 @@ export default function WhatWeFound() {
   }, [])
 
   useEffect(() => {
+    // Don't start onboarding polling if we're still checking account status
+    if (checkingAccount) {
+      return
+    }
+
     let progressInterval: NodeJS.Timeout
     let elapsedInterval: NodeJS.Timeout
     let checkInterval: NodeJS.Timeout

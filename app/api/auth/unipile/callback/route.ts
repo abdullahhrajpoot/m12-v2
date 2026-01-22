@@ -153,20 +153,24 @@ export async function GET(request: NextRequest) {
       console.warn('Could not fetch account email from Unipile:', error)
     }
 
-    if (!accountEmail) {
-      console.warn('⚠️ Could not get email from Unipile account, will try to continue')
-      // Try to get email from existing user or use a placeholder
-      accountEmail = user?.email || `user_${accountId.substring(0, 8)}@unipile.temp`
-    }
-
-    // Now that we have the email, check/create user
+    // Check for existing user first (before trying to use user.email in fallback)
     let user = null
     const { data: { user: existingUser }, error: authError } = await supabase.auth.getUser()
 
     if (existingUser) {
       user = existingUser
       console.log('✅ Authenticated user found:', user.id, 'email:', user.email)
-    } else {
+    }
+
+    // If we still don't have an email, try to get it from existing user or use placeholder
+    if (!accountEmail) {
+      console.warn('⚠️ Could not get email from Unipile account, will try to continue')
+      // Try to get email from existing user or use a placeholder
+      accountEmail = user?.email || `user_${accountId.substring(0, 8)}@unipile.temp`
+    }
+
+    // Now that we have the email, create user if needed
+    if (!user) {
       // No existing Supabase session - create a new user account
       // This handles the case where users come directly from Unipile OAuth
       console.log('📝 No existing session - creating new Supabase user with email:', accountEmail)
