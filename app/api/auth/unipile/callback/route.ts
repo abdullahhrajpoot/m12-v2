@@ -13,7 +13,8 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const sessionId = searchParams.get('session_id')
+  // Handle both 'session_id' and 'session' parameters (Unipile might use either)
+  const sessionId = searchParams.get('session_id') || searchParams.get('session')
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bippity.boo'
 
   console.log('🔐 Unipile callback received:', {
