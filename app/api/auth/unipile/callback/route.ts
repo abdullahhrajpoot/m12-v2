@@ -34,7 +34,11 @@ export async function GET(request: NextRequest) {
       console.log('✅ Found session_id in cookie:', cookieSessionId)
       // Continue with cookie session_id
       const response = NextResponse.redirect(new URL(`/api/auth/unipile/callback?session_id=${cookieSessionId}`, appUrl))
-      response.cookies.delete('unipile_session_id', getCookieOptions())
+      // Delete cookie by setting it with empty value and expired date
+      response.cookies.set('unipile_session_id', '', {
+        ...getCookieOptions(),
+        expires: new Date(0) // Expire immediately
+      })
       return response
     }
     return NextResponse.redirect(new URL('/?error=missing_session', appUrl))
@@ -331,8 +335,13 @@ export async function GET(request: NextRequest) {
 
     // Clean up session cookies
     const response = NextResponse.redirect(new URL('/whatwefound', appUrl))
-    response.cookies.delete('unipile_session_id', getCookieOptions())
-    response.cookies.delete('unipile_pending_session', getCookieOptions())
+    // Delete cookies by setting them with empty value and expired date
+    const deleteCookieOptions = {
+      ...getCookieOptions(),
+      expires: new Date(0) // Expire immediately
+    }
+    response.cookies.set('unipile_session_id', '', deleteCookieOptions)
+    response.cookies.set('unipile_pending_session', '', deleteCookieOptions)
     
     // Prevent caching
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
