@@ -3,7 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+/**
+ * ⚠️ DEPRECATED: Legacy Google OAuth callback route
+ * 
+ * This route handles Supabase Auth Google OAuth callbacks.
+ * 
+ * **Status:** DEPRECATED - New users should use Unipile OAuth flow
+ * **Migration:** All new signups use /api/auth/unipile/connect
+ * 
+ * This route is kept for backward compatibility with existing users
+ * who signed up before the Unipile migration.
+ * 
+ * TODO: Remove this route once all users have been migrated to Unipile
+ */
 export async function GET(request: Request) {
+  console.warn('⚠️ DEPRECATED: Legacy Google OAuth callback route accessed')
+  console.warn('⚠️ New users should use Unipile OAuth: /api/auth/unipile/connect')
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const next = requestUrl.searchParams.get('next') ?? '/whatwefound'

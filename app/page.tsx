@@ -213,17 +213,17 @@ const CalendarMockup = () => (
 export default function Home() {
   const router = useRouter()
 
-  // Handle OAuth callback code if redirected here instead of /auth/callback
-  // Also handle error parameters from OAuth failures
-  // Handle Unipile session parameter redirects
+  // Handle Unipile session parameter redirects and error parameters
+  // NOTE: Legacy Google OAuth (Supabase Auth) redirects have been removed
+  // All new signups should use Unipile OAuth flow via /api/auth/unipile/connect
   useEffect(() => {
-    // Check URL for code parameter (client-side only)
+    // Check URL for parameters (client-side only)
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search)
-      const code = urlParams.get('code')
       const error = urlParams.get('error')
       const errorDescription = urlParams.get('error_description')
       const session = urlParams.get('session')
+      const code = urlParams.get('code') // Legacy Supabase OAuth code - deprecated
       
       // Handle Unipile session parameter - redirect to whatwefound
       if (session) {
@@ -231,13 +231,15 @@ export default function Home() {
         return
       }
       
+      // Legacy Google OAuth code - redirect to Unipile flow instead
       if (code) {
-        // Redirect to the callback route with the code
-        router.replace(`/auth/callback?code=${code}`)
+        console.warn('⚠️ Legacy Google OAuth detected. Redirecting to Unipile flow.')
+        // Clean URL and redirect to Unipile connect
+        router.replace('/api/auth/unipile/connect')
         return
       }
       
-      // Handle OAuth errors from Supabase
+      // Handle OAuth errors (from Unipile or legacy)
       if (error) {
         const errorCode = urlParams.get('error_code')
         console.error('OAuth error detected:', {

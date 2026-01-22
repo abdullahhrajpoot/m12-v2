@@ -4,9 +4,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 /**
- * API endpoint to store OAuth provider tokens
+ * ⚠️ DEPRECATED: API endpoint to store OAuth provider tokens
  * 
  * Called after successful OAuth to store tokens in the database for n8n workflows.
+ * 
+ * **Status:** DEPRECATED - This was a fallback mechanism for storing Google OAuth tokens.
+ * New Unipile OAuth flow stores account_id directly, not tokens.
+ * 
+ * **Kept for:** Backward compatibility with legacy workflows
  * 
  * POST /api/auth/store-tokens
  * Body: { provider, access_token, refresh_token?, expires_at?, scope? }
