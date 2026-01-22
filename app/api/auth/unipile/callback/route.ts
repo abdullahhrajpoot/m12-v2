@@ -18,6 +18,12 @@ export async function GET(request: NextRequest) {
   const sessionId = searchParams.get('session_id') || searchParams.get('session')
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bippity.boo'
 
+  // Warn if appUrl looks like localhost (configuration issue)
+  if (appUrl.includes('localhost') || appUrl.includes('127.0.0.1')) {
+    console.warn('⚠️ WARNING: NEXT_PUBLIC_APP_URL appears to be localhost:', appUrl)
+    console.warn('⚠️ This will cause redirect issues. Set NEXT_PUBLIC_APP_URL=https://bippity.boo in Railway')
+  }
+
   console.log('🔐 Unipile callback received:', {
     sessionId: sessionId,
     url: request.url,
@@ -26,7 +32,9 @@ export async function GET(request: NextRequest) {
   })
 
   if (!sessionId) {
-    console.error('❌ Missing session_id in callback URL. Full URL:', request.url)
+    const urlPath = new URL(request.url).pathname + new URL(request.url).search
+    console.error('❌ Missing session_id in callback URL. Path:', urlPath)
+    console.error('❌ Configured appUrl:', appUrl)
     console.error('❌ All search params:', Object.fromEntries(searchParams.entries()))
     // Try to get session_id from cookie as fallback
     const cookieSessionId = request.cookies.get('unipile_session_id')?.value
@@ -373,10 +381,14 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error in Unipile callback:', error)
+    console.error('❌ Error context:', {
+      appUrl: appUrl,
+      sessionId: sessionId || 'none'
+    })
     // Even on error, redirect to whatwefound - better UX than landing page
     // The page can show a loading state and handle errors gracefully
-    const sessionId = new URL(request.url).searchParams.get('session_id')
-    const response = NextResponse.redirect(new URL(`/whatwefound?error=callback_error${sessionId ? `&session=${sessionId}` : ''}`, appUrl))
+    const errorSessionId = sessionId || searchParams.get('session_id') || searchParams.get('session')
+    const response = NextResponse.redirect(new URL(`/whatwefound?error=callback_error${errorSessionId ? `&session=${errorSessionId}` : ''}`, appUrl))
     if (sessionId) {
       response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
         maxAge: 60 * 30 // 30 minutes

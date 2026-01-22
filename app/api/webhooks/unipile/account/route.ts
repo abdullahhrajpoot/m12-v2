@@ -26,11 +26,13 @@ function verifyUnipileAuth(authHeader: string | null, expectedSecret: string): b
 }
 
 export async function POST(request: NextRequest) {
-  // Log all incoming requests for debugging
+  // Log all incoming requests for debugging (sanitize URL to avoid logging localhost)
+  const urlPath = new URL(request.url).pathname + new URL(request.url).search
   console.log('📧 Unipile account webhook endpoint hit:', {
     method: request.method,
-    url: request.url,
-    headers: Object.fromEntries(request.headers.entries())
+    url: urlPath, // Only log path, not full URL with host
+    host: request.headers.get('host'), // Log host separately
+    userAgent: request.headers.get('user-agent')
   })
 
   try {

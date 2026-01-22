@@ -15,6 +15,12 @@ export async function GET(request: NextRequest) {
     const unipileApiKey = process.env.UNIPILE_API_KEY
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bippity.boo'
 
+    // Warn if appUrl looks like localhost (configuration issue)
+    if (appUrl.includes('localhost') || appUrl.includes('127.0.0.1')) {
+      console.warn('⚠️ WARNING: NEXT_PUBLIC_APP_URL appears to be localhost:', appUrl)
+      console.warn('⚠️ This will cause redirect issues in production. Set NEXT_PUBLIC_APP_URL=https://bippity.boo in Railway')
+    }
+
     if (!unipileDsn || !unipileApiKey) {
       console.error('Unipile configuration missing:', {
         hasDsn: !!unipileDsn,
@@ -72,9 +78,11 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('🔐 Redirecting to Unipile OAuth:', {
+      appUrl: appUrl, // Log the configured app URL
       dsn: unipileDsn,
       authUrl: unipileAuthUrl,
       callbackUrl: successRedirectUrl,
+      notifyUrl: notifyUrl,
       sessionId: sessionId
     })
 
