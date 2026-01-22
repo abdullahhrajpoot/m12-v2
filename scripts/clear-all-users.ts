@@ -53,10 +53,11 @@ async function clearSupabaseUsers() {
     }
     
     // Step 3: Delete all OAuth tokens
+    // Use a filter that matches all rows (created_at >= epoch start)
     const { error: tokensError } = await supabaseAdmin
       .from('oauth_tokens')
       .delete()
-      .neq('id', 0) // Delete all
+      .gte('created_at', '1970-01-01') // Matches all rows (all created after epoch)
     
     if (tokensError) {
       console.error('❌ Error deleting OAuth tokens:', tokensError)
@@ -68,7 +69,7 @@ async function clearSupabaseUsers() {
     const { error: summariesError } = await supabaseAdmin
       .from('onboarding_summaries')
       .delete()
-      .neq('id', 0)
+      .gte('created_at', '1970-01-01')
     
     if (summariesError) {
       console.error('❌ Error deleting onboarding summaries:', summariesError)
@@ -80,7 +81,7 @@ async function clearSupabaseUsers() {
     const { error: eventsError } = await supabaseAdmin
       .from('unified_events')
       .delete()
-      .neq('id', 0)
+      .gte('created_at', '1970-01-01')
     
     if (eventsError) {
       console.error('❌ Error deleting unified events:', eventsError)
@@ -92,7 +93,7 @@ async function clearSupabaseUsers() {
     const { error: calendarError } = await supabaseAdmin
       .from('calendar_events')
       .delete()
-      .neq('id', 0)
+      .gte('created_at', '1970-01-01')
     
     if (calendarError) {
       console.error('❌ Error deleting calendar events:', calendarError)
@@ -104,7 +105,7 @@ async function clearSupabaseUsers() {
     const { error: tasksError } = await supabaseAdmin
       .from('tasks')
       .delete()
-      .neq('id', 0)
+      .gte('created_at', '1970-01-01')
     
     if (tasksError) {
       console.error('❌ Error deleting tasks:', tasksError)
@@ -116,7 +117,7 @@ async function clearSupabaseUsers() {
     const { error: factsError } = await supabaseAdmin
       .from('family_facts')
       .delete()
-      .neq('id', 0)
+      .gte('created_at', '1970-01-01')
     
     if (factsError) {
       console.error('❌ Error deleting family facts:', factsError)
@@ -128,7 +129,7 @@ async function clearSupabaseUsers() {
     const { error: keywordsError } = await supabaseAdmin
       .from('family_keywords')
       .delete()
-      .neq('id', 0)
+      .gte('created_at', '1970-01-01')
     
     if (keywordsError) {
       console.error('❌ Error deleting family keywords:', keywordsError)
@@ -140,7 +141,7 @@ async function clearSupabaseUsers() {
     const { error: servicesError } = await supabaseAdmin
       .from('connected_services')
       .delete()
-      .neq('id', 0)
+      .gte('created_at', '1970-01-01')
     
     if (servicesError) {
       console.error('❌ Error deleting connected services:', servicesError)
