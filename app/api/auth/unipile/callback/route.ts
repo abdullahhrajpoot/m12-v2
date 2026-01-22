@@ -96,21 +96,38 @@ export async function GET(request: NextRequest) {
     )
 
     // Look up account_id from the webhook data using session_id
-    const { data: pendingToken, error: lookupError } = await supabaseAdmin
-      .from('oauth_tokens')
-      .select('unipile_account_id')
-      .eq('user_id', `pending_${sessionId}`)
-      .eq('provider', 'unipile')
-      .single()
+    // The webhook may not have fired yet, so we'll retry a few times
+    let accountId: string | null = null
+    let retries = 0
+    const maxRetries = 5
+    
+    while (!accountId && retries < maxRetries) {
+      const { data: pendingToken, error: lookupError } = await supabaseAdmin
+        .from('oauth_tokens')
+        .select('unipile_account_id')
+        .eq('user_id', `pending_${sessionId}`)
+        .eq('provider', 'unipile')
+        .single()
 
-    if (lookupError || !pendingToken || !pendingToken.unipile_account_id) {
-      console.error('❌ Could not find account_id for session:', sessionId, lookupError)
-      // Try to get account info from Unipile API using email
-      // For now, redirect with error - user can try again
-      return NextResponse.redirect(new URL('/?error=account_not_found', appUrl))
+      if (!lookupError && pendingToken && pendingToken.unipile_account_id) {
+        accountId = pendingToken.unipile_account_id
+        break
+      }
+
+      // Wait a bit before retrying (webhook might be delayed)
+      if (retries < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+        retries++
+      } else {
+        console.error('❌ Could not find account_id for session after retries:', sessionId)
+        return NextResponse.redirect(new URL('/?error=account_not_found', appUrl))
+      }
     }
 
-    const accountId = pendingToken.unipile_account_id
+    if (!accountId) {
+      console.error('❌ Could not find account_id for session:', sessionId)
+      return NextResponse.redirect(new URL('/?error=account_not_found', appUrl))
+    }
 
     // Get account email from Unipile API
     let accountEmail = user.email || null
