@@ -358,6 +358,7 @@
       },
       "name": "Parse Sentences Array",
       "id": "parse-sentences",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [2600, 200],
       "alwaysOutputData": true
@@ -385,6 +386,7 @@
       },
       "name": "Preserve Data for Insert",
       "id": "preserve-data",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [3000, 200],
       "alwaysOutputData": true
