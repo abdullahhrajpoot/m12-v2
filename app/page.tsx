@@ -215,6 +215,7 @@ export default function Home() {
 
   // Handle OAuth callback code if redirected here instead of /auth/callback
   // Also handle error parameters from OAuth failures
+  // Handle Unipile session parameter redirects
   useEffect(() => {
     // Check URL for code parameter (client-side only)
     if (typeof window !== 'undefined') {
@@ -222,6 +223,13 @@ export default function Home() {
       const code = urlParams.get('code')
       const error = urlParams.get('error')
       const errorDescription = urlParams.get('error_description')
+      const session = urlParams.get('session')
+      
+      // Handle Unipile session parameter - redirect to whatwefound
+      if (session) {
+        router.replace(`/whatwefound?session=${session}`)
+        return
+      }
       
       if (code) {
         // Redirect to the callback route with the code
