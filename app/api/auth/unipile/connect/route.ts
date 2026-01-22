@@ -73,10 +73,20 @@ export async function GET(request: NextRequest) {
     console.log('🔐 Redirecting to Unipile OAuth:', {
       dsn: unipileDsn,
       authUrl: unipileAuthUrl,
-      callbackUrl: successRedirectUrl
+      callbackUrl: successRedirectUrl,
+      sessionId: sessionId
     })
 
-    return NextResponse.redirect(unipileAuthUrl)
+    // Store session_id in cookie as backup in case Unipile doesn't preserve query params
+    const response = NextResponse.redirect(unipileAuthUrl)
+    response.cookies.set('unipile_session_id', sessionId, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 60 * 10 // 10 minutes
+    })
+    
+    return response
 
   } catch (error) {
     console.error('Error initiating Unipile OAuth:', error)

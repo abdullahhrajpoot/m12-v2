@@ -18,11 +18,23 @@ export async function GET(request: NextRequest) {
 
   console.log('🔐 Unipile callback received:', {
     sessionId: sessionId,
-    allParams: Object.fromEntries(searchParams.entries())
+    url: request.url,
+    allParams: Object.fromEntries(searchParams.entries()),
+    headers: Object.fromEntries(request.headers.entries())
   })
 
   if (!sessionId) {
-    console.error('❌ Missing session_id in callback')
+    console.error('❌ Missing session_id in callback URL. Full URL:', request.url)
+    console.error('❌ All search params:', Object.fromEntries(searchParams.entries()))
+    // Try to get session_id from cookie as fallback
+    const cookieSessionId = request.cookies.get('unipile_session_id')?.value
+    if (cookieSessionId) {
+      console.log('✅ Found session_id in cookie:', cookieSessionId)
+      // Continue with cookie session_id
+      const response = NextResponse.redirect(new URL(`/api/auth/unipile/callback?session_id=${cookieSessionId}`, appUrl))
+      response.cookies.delete('unipile_session_id')
+      return response
+    }
     return NextResponse.redirect(new URL('/?error=missing_session', appUrl))
   }
 
@@ -88,14 +100,19 @@ export async function GET(request: NextRequest) {
         retries++
       } else {
         console.error('❌ Could not find account_id for session after retries:', sessionId)
-        return NextResponse.redirect(new URL('/?error=account_not_found', appUrl))
+        console.error('❌ Check if webhook was received at /api/webhooks/unipile/account')
+        console.error('❌ Check oauth_tokens table for user_id = pending_' + sessionId)
+        return NextResponse.redirect(new URL('/?error=account_not_found&session=' + sessionId.substring(0, 8), appUrl))
       }
     }
 
     if (!accountId) {
       console.error('❌ Could not find account_id for session:', sessionId)
-      return NextResponse.redirect(new URL('/?error=account_not_found', appUrl))
+      console.error('❌ This usually means the webhook has not fired yet or failed')
+      return NextResponse.redirect(new URL('/?error=account_not_found&session=' + sessionId.substring(0, 8), appUrl))
     }
+    
+    console.log('✅ Found account_id:', accountId, 'for session:', sessionId)
 
     // Get account email from Unipile API
     let accountEmail: string | null = null
@@ -219,13 +236,16 @@ export async function GET(request: NextRequest) {
       console.warn('⚠️ N8N_UNIPILE_ONBOARDING_WEBHOOK_URL not configured - skipping workflow trigger')
     }
 
-    // Redirect to whatwefound page (onboarding status page)
+    // Clean up session cookie
     const response = NextResponse.redirect(new URL('/whatwefound', appUrl))
+    response.cookies.delete('unipile_session_id')
     
     // Prevent caching
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
     response.headers.set('Pragma', 'no-cache')
     response.headers.set('Expires', '0')
+    
+    console.log('✅ Redirecting to /whatwefound for user:', user.id)
     
     return response
 
