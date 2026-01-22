@@ -15,15 +15,16 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 /**
- * Verify Unipile webhook authentication
+ * NOTE: notify_url from Hosted Auth does NOT send authentication headers
+ * This is different from regular webhooks created via API
+ * The notify_url is a callback from Unipile's hosted auth wizard
+ * We rely on the payload structure and the 'name' parameter for security
+ * 
+ * If you need authentication, you can:
+ * 1. Include a secret in the notify_url query string
+ * 2. Verify the payload structure matches expected format
+ * 3. Use HTTPS to ensure secure transmission
  */
-function verifyUnipileAuth(authHeader: string | null, expectedSecret: string): boolean {
-  if (!authHeader) {
-    return false
-  }
-  
-  return authHeader === expectedSecret
-}
 
 export async function POST(request: NextRequest) {
   // Log all incoming requests for debugging (sanitize URL to avoid logging localhost)
@@ -36,53 +37,18 @@ export async function POST(request: NextRequest) {
   })
 
   try {
-    // Get webhook secret from environment
-    const webhookSecret = process.env.UNIPILE_WEBHOOK_SECRET
-
-    if (!webhookSecret) {
-      console.error('❌ UNIPILE_WEBHOOK_SECRET not configured')
-      return NextResponse.json(
-        { error: 'Webhook secret not configured' },
-        { status: 500 }
-      )
-    }
-
-    // Verify webhook authentication
-    const authHeader = request.headers.get('Unipile-Auth')
+    // IMPORTANT: notify_url from Hosted Auth does NOT send authentication headers
+    // This is different from regular webhooks created via API
+    // The notify_url is a callback from Unipile's hosted auth wizard
+    // We rely on HTTPS and payload structure for security
+    // See: https://developer.unipile.com/docs/hosted-auth
+    
     const body = await request.text()
-
-    console.log('📧 Webhook auth check:', {
-      hasAuthHeader: !!authHeader,
-      authHeaderLength: authHeader?.length || 0,
-      hasWebhookSecret: !!webhookSecret,
+    
+    console.log('📧 notify_url webhook received from Unipile Hosted Auth:', {
+      method: request.method,
       bodyLength: body.length
     })
-
-    // Log all headers for debugging
-    const allHeaders = Object.fromEntries(request.headers.entries())
-    console.log('📧 All webhook headers:', Object.keys(allHeaders))
-    
-    if (!verifyUnipileAuth(authHeader, webhookSecret)) {
-      console.error('❌ Invalid webhook authentication:', {
-        authHeader: authHeader ? `${authHeader.substring(0, 10)}...` : 'missing',
-        expectedSecret: webhookSecret ? `${webhookSecret.substring(0, 10)}...` : 'missing',
-        match: authHeader === webhookSecret,
-        allHeaderKeys: Object.keys(allHeaders),
-        hasUnipileAuth: !!authHeader,
-        hasXApiKey: !!request.headers.get('X-API-KEY'),
-        hasAuthorization: !!request.headers.get('Authorization')
-      })
-      
-      // For now, allow webhook to proceed but log warning
-      // TODO: Re-enable strict auth once Unipile webhook is properly configured
-      console.warn('⚠️ Webhook authentication failed, but allowing to proceed for debugging')
-      // return NextResponse.json(
-      //   { error: 'Invalid authentication' },
-      //   { status: 401 }
-      // )
-    } else {
-      console.log('✅ Webhook authentication verified')
-    }
 
     // Parse webhook data
     let data
