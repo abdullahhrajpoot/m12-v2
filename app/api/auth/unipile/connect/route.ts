@@ -25,9 +25,13 @@ export async function GET(request: NextRequest) {
     // Generate expiration date (24 hours from now)
     const expiresOn = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     
+    // Generate a session ID to match webhook with callback
+    const sessionId = crypto.randomUUID()
+    
     // Build redirect URLs
-    const successRedirectUrl = `${appUrl}/api/auth/unipile/callback`
+    const successRedirectUrl = `${appUrl}/api/auth/unipile/callback?session_id=${sessionId}`
     const failureRedirectUrl = `${appUrl}/?error=oauth_failed`
+    const notifyUrl = `${appUrl}/api/webhooks/unipile/account`
 
     // Call Unipile API to generate hosted auth link
     // Correct endpoint: POST /api/v1/hosted/accounts/link
@@ -44,7 +48,9 @@ export async function GET(request: NextRequest) {
         api_url: unipileDsn,
         expiresOn: expiresOn,
         success_redirect_url: successRedirectUrl,
-        failure_redirect_url: failureRedirectUrl
+        failure_redirect_url: failureRedirectUrl,
+        notify_url: notifyUrl,
+        name: sessionId // Pass session ID so webhook can match it
       })
     })
 

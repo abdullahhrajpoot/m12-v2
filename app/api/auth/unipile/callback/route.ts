@@ -13,19 +13,17 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const accountId = searchParams.get('account_id')
-  const email = searchParams.get('email')
+  const sessionId = searchParams.get('session_id')
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bippity.boo'
 
   console.log('🔐 Unipile callback received:', {
-    hasAccountId: !!accountId,
-    email: email,
+    sessionId: sessionId,
     allParams: Object.fromEntries(searchParams.entries())
   })
 
-  if (!accountId || !email) {
-    console.error('❌ Missing account_id or email in callback')
-    return NextResponse.redirect(new URL('/?error=missing_params', appUrl))
+  if (!sessionId) {
+    console.error('❌ Missing session_id in callback')
+    return NextResponse.redirect(new URL('/?error=missing_session', appUrl))
   }
 
   try {
@@ -97,14 +95,60 @@ export async function GET(request: NextRequest) {
       serviceRoleKey
     )
 
-    // Store Unipile account credentials
+    // Look up account_id from the webhook data using session_id
+    const { data: pendingToken, error: lookupError } = await supabaseAdmin
+      .from('oauth_tokens')
+      .select('unipile_account_id')
+      .eq('user_id', `pending_${sessionId}`)
+      .eq('provider', 'unipile')
+      .single()
+
+    if (lookupError || !pendingToken || !pendingToken.unipile_account_id) {
+      console.error('❌ Could not find account_id for session:', sessionId, lookupError)
+      // Try to get account info from Unipile API using email
+      // For now, redirect with error - user can try again
+      return NextResponse.redirect(new URL('/?error=account_not_found', appUrl))
+    }
+
+    const accountId = pendingToken.unipile_account_id
+
+    // Get account email from Unipile API
+    let accountEmail = user.email || null
+    try {
+      const unipileDsn = process.env.UNIPILE_DSN
+      const unipileApiKey = process.env.UNIPILE_API_KEY
+      
+      if (unipileDsn && unipileApiKey) {
+        const accountResponse = await fetch(`${unipileDsn}/api/v1/accounts/${accountId}`, {
+          headers: {
+            'X-API-KEY': unipileApiKey
+          }
+        })
+        
+        if (accountResponse.ok) {
+          const accountData = await accountResponse.json()
+          accountEmail = accountData.email || accountData.provider_email || user.email
+        }
+      }
+    } catch (error) {
+      console.warn('Could not fetch account email from Unipile:', error)
+    }
+
+    // Update oauth_tokens with real user_id (replacing the pending one)
+    const { error: deleteError } = await supabaseAdmin
+      .from('oauth_tokens')
+      .delete()
+      .eq('user_id', `pending_${sessionId}`)
+      .eq('provider', 'unipile')
+
+    // Store Unipile account credentials with real user_id
     const { error: upsertError } = await supabaseAdmin
       .from('oauth_tokens')
       .upsert({
         user_id: user.id,
         provider: 'unipile',
         unipile_account_id: accountId,
-        provider_email: email,
+        provider_email: accountEmail,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,provider'
@@ -115,7 +159,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/?error=storage_error', appUrl))
     }
 
-    console.log('✅ Unipile account_id stored for user:', user.id)
+    console.log('✅ Unipile account_id stored for user:', user.id, 'account:', accountId)
 
     // Trigger n8n onboarding workflow
     const webhookUrl = process.env.N8N_UNIPILE_ONBOARDING_WEBHOOK_URL
