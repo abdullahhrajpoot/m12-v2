@@ -24,11 +24,17 @@ export async function GET(request: NextRequest) {
     console.warn('⚠️ This will cause redirect issues. Set NEXT_PUBLIC_APP_URL=https://bippity.boo in Railway')
   }
 
+  // Log the full URL path (not full URL to avoid logging localhost)
+  const urlPath = new URL(request.url).pathname + new URL(request.url).search
   console.log('🔐 Unipile callback received:', {
     sessionId: sessionId,
-    url: request.url,
+    urlPath: urlPath, // Only log path, not full URL
+    appUrl: appUrl,
+    host: request.headers.get('host'),
     allParams: Object.fromEntries(searchParams.entries()),
-    headers: Object.fromEntries(request.headers.entries())
+    hasSessionIdParam: !!searchParams.get('session_id'),
+    hasSessionParam: !!searchParams.get('session'),
+    cookieSessionId: request.cookies.get('unipile_session_id')?.value || 'none'
   })
 
   if (!sessionId) {
@@ -36,6 +42,8 @@ export async function GET(request: NextRequest) {
     console.error('❌ Missing session_id in callback URL. Path:', urlPath)
     console.error('❌ Configured appUrl:', appUrl)
     console.error('❌ All search params:', Object.fromEntries(searchParams.entries()))
+    console.error('❌ This might mean Unipile redirected without preserving query params')
+    
     // Try to get session_id from cookie as fallback
     const cookieSessionId = request.cookies.get('unipile_session_id')?.value
     if (cookieSessionId) {
@@ -49,7 +57,12 @@ export async function GET(request: NextRequest) {
       })
       return response
     }
-    return NextResponse.redirect(new URL('/?error=missing_session', appUrl))
+    
+    // If no session_id at all, check if this is a direct redirect from Unipile
+    // Unipile might redirect to success_redirect_url without query params
+    // In that case, we should check for pending sessions and redirect to whatwefound
+    console.warn('⚠️ No session_id found - checking for any pending sessions...')
+    return NextResponse.redirect(new URL('/?error=missing_session&hint=check_cookies', appUrl))
   }
 
   try {
