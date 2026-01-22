@@ -483,8 +483,14 @@ export default function WhatWeFound() {
           }
         } else {
           // API returned an error
-          console.error('API error:', response.status, data)
-          // Continue polling for a bit, then show error if it persists
+          if (response.status === 401) {
+            // Auth error - session might not be established yet
+            console.log('Auth error - session may not be ready yet, continuing to poll')
+            // Continue polling - session might be established soon
+          } else {
+            console.error('API error:', response.status, data)
+            // Continue polling for a bit, then show error if it persists
+          }
         }
       } catch (err) {
         // Network error - continue polling
@@ -514,7 +520,7 @@ export default function WhatWeFound() {
       clearInterval(checkInterval)
       clearTimeout(timeout)
     }
-  }, []) // Run once on mount
+  }, [checkingAccount]) // Re-run if checkingAccount changes
 
   const handleSubmit = async (isAllGood = false) => {
     // Validate facts array before submitting

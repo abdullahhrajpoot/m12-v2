@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCookieOptions } from '@/lib/cookie-utils'
 
 /**
  * API endpoint to initiate Unipile OAuth flow
@@ -79,12 +80,9 @@ export async function GET(request: NextRequest) {
 
     // Store session_id in cookie as backup in case Unipile doesn't preserve query params
     const response = NextResponse.redirect(unipileAuthUrl)
-    response.cookies.set('unipile_session_id', sessionId, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
+    response.cookies.set('unipile_session_id', sessionId, getCookieOptions({
       maxAge: 60 * 10 // 10 minutes
-    })
+    }))
     
     return response
 

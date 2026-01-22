@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { getCookieOptions } from '@/lib/cookie-utils'
 
 /**
  * API endpoint to handle Unipile OAuth callback
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       console.log('✅ Found session_id in cookie:', cookieSessionId)
       // Continue with cookie session_id
       const response = NextResponse.redirect(new URL(`/api/auth/unipile/callback?session_id=${cookieSessionId}`, appUrl))
-      response.cookies.delete('unipile_session_id')
+      response.cookies.delete('unipile_session_id', getCookieOptions())
       return response
     }
     return NextResponse.redirect(new URL('/?error=missing_session', appUrl))
@@ -53,7 +54,12 @@ export async function GET(request: NextRequest) {
           setAll(cookiesToSet) {
             try {
               cookiesToSet.forEach(({ name, value, options }) => {
-                cookieStore.set(name, value, options)
+                // Ensure all auth cookies use the correct domain
+                const cookieOptions = {
+                  ...options,
+                  domain: '.bippity.boo', // Match middleware domain
+                }
+                cookieStore.set(name, value, cookieOptions)
               })
             } catch {
               // Ignore errors in Server Component context
@@ -106,12 +112,9 @@ export async function GET(request: NextRequest) {
         // Redirect to whatwefound anyway - the page can poll for account status
         // Store session_id in cookie so whatwefound can check later
         const response = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
-        response.cookies.set('unipile_pending_session', sessionId, {
-          httpOnly: true,
-          secure: true,
-          sameSite: 'lax',
+        response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
           maxAge: 60 * 30 // 30 minutes
-        })
+        }))
         return response
       }
     }
@@ -121,24 +124,23 @@ export async function GET(request: NextRequest) {
       console.error('❌ This usually means the webhook has not fired yet or failed')
       // Redirect to whatwefound anyway - the page can poll for account status
       const response = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
-      response.cookies.set('unipile_pending_session', sessionId, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
+      response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
         maxAge: 60 * 30 // 30 minutes
-      })
+      }))
       return response
     }
     
     console.log('✅ Found account_id:', accountId, 'for session:', sessionId)
 
     // Get account email from Unipile API
+    // Try multiple methods to get the email
     let accountEmail: string | null = null
     try {
       const unipileDsn = process.env.UNIPILE_DSN
       const unipileApiKey = process.env.UNIPILE_API_KEY
       
       if (unipileDsn && unipileApiKey) {
+        // Method 1: Get account details
         const accountResponse = await fetch(`${unipileDsn}/api/v1/accounts/${accountId}`, {
           headers: {
             'X-API-KEY': unipileApiKey
@@ -147,7 +149,28 @@ export async function GET(request: NextRequest) {
         
         if (accountResponse.ok) {
           const accountData = await accountResponse.json()
-          accountEmail = accountData.email || accountData.provider_email || null
+          accountEmail = accountData.email || accountData.provider_email || accountData.provider?.email || null
+        }
+        
+        // Method 2: If still no email, try to get from messages endpoint
+        if (!accountEmail) {
+          try {
+            const messagesResponse = await fetch(`${unipileDsn}/api/v1/accounts/${accountId}/messages?limit=1`, {
+              headers: {
+                'X-API-KEY': unipileApiKey
+              }
+            })
+            
+            if (messagesResponse.ok) {
+              const messagesData = await messagesResponse.json()
+              if (messagesData.data && messagesData.data.length > 0) {
+                const firstMessage = messagesData.data[0]
+                accountEmail = firstMessage.from?.email || firstMessage.sender_email || null
+              }
+            }
+          } catch (msgError) {
+            console.warn('Could not fetch email from messages:', msgError)
+          }
         }
       }
     } catch (error) {
@@ -166,8 +189,18 @@ export async function GET(request: NextRequest) {
     // If we still don't have an email, try to get it from existing user or use placeholder
     if (!accountEmail) {
       console.warn('⚠️ Could not get email from Unipile account, will try to continue')
-      // Try to get email from existing user or use a placeholder
-      accountEmail = user?.email || `user_${accountId.substring(0, 8)}@unipile.temp`
+      // Try to get email from existing user first
+      accountEmail = user?.email || null
+      
+      // If still no email, we can't create a user - redirect to error page
+      if (!accountEmail) {
+        console.error('❌ Cannot proceed without email - Unipile account:', accountId)
+        const response = NextResponse.redirect(new URL('/whatwefound?error=no_email&session=' + sessionId, appUrl))
+        response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
+          maxAge: 60 * 30
+        }))
+        return response
+      }
     }
 
     // Now that we have the email, create user if needed
@@ -197,36 +230,37 @@ export async function GET(request: NextRequest) {
       user = newUserData.user
       console.log('✅ Created new Supabase user via Admin API:', user.id)
       
-      // Create a temporary password and sign the user in
-      // This establishes a valid session immediately
-      const tempPassword = crypto.randomUUID()
+      // Establish session using Admin API magic link approach
+      // This creates a proper session without needing a password
       try {
-        // Update user with temporary password using Admin API
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-          user.id,
-          { password: tempPassword }
-        )
+        // Generate magic link using Admin API
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: accountEmail
+        })
         
-        if (updateError) {
-          console.warn('⚠️ Could not set temporary password:', updateError)
+        if (linkError || !linkData?.properties?.hashed_token) {
+          console.warn('⚠️ Could not generate magic link:', linkError)
+          // Fallback: User is created, session will be established on next interaction
         } else {
-          // Sign in with the temporary password
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: accountEmail,
-            password: tempPassword
+          // Verify OTP using the hashed token to create session
+          const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: linkData.properties.hashed_token,
+            type: 'email'
           })
           
-          if (signInError) {
-            console.warn('⚠️ Could not sign in with temporary password:', signInError)
-          } else if (signInData?.session) {
-            console.log('✅ User signed in with temporary password')
-            // Session cookie is set automatically
-            // Note: User should change password later, but for now they have a valid session
+          if (verifyError) {
+            console.warn('⚠️ Could not verify OTP token:', verifyError)
+            // User is created but no session - whatwefound will handle this
+          } else if (sessionData?.session) {
+            console.log('✅ Session established via Admin API magic link')
+            // Session cookies are set automatically by Supabase client via setAll
+            // The cookie domain is handled by the createServerClient configuration
           }
         }
       } catch (error) {
-        console.warn('⚠️ Error creating session for new user:', error)
-        // User is created, but no session - they'll need to sign in manually
+        console.warn('⚠️ Error establishing session for new user:', error)
+        // User is created, session will be established on next page load or via whatwefound
       }
     }
 
@@ -295,9 +329,10 @@ export async function GET(request: NextRequest) {
       console.warn('⚠️ N8N_UNIPILE_ONBOARDING_WEBHOOK_URL not configured - skipping workflow trigger')
     }
 
-    // Clean up session cookie
+    // Clean up session cookies
     const response = NextResponse.redirect(new URL('/whatwefound', appUrl))
-    response.cookies.delete('unipile_session_id')
+    response.cookies.delete('unipile_session_id', getCookieOptions())
+    response.cookies.delete('unipile_pending_session', getCookieOptions())
     
     // Prevent caching
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
@@ -315,12 +350,9 @@ export async function GET(request: NextRequest) {
     const sessionId = new URL(request.url).searchParams.get('session_id')
     const response = NextResponse.redirect(new URL(`/whatwefound?error=callback_error${sessionId ? `&session=${sessionId}` : ''}`, appUrl))
     if (sessionId) {
-      response.cookies.set('unipile_pending_session', sessionId, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
+      response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
         maxAge: 60 * 30 // 30 minutes
-      })
+      }))
     }
     return response
   }
