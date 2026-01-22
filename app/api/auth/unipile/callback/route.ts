@@ -87,32 +87,46 @@ export async function GET(request: NextRequest) {
     )
 
     // Look up account_id from the webhook data using session_id
-    // The webhook may not have fired yet, so we'll retry a few times
+    // The webhook may not have fired yet, so we'll retry with exponential backoff
     let accountId: string | null = null
     let retries = 0
-    const maxRetries = 5
+    const maxRetries = 10 // Increased from 5
+    const baseDelay = 500 // Start with 500ms
+    
+    console.log('🔍 Looking up account_id for session:', sessionId)
     
     while (!accountId && retries < maxRetries) {
       const { data: pendingToken, error: lookupError } = await supabaseAdmin
         .from('oauth_tokens')
-        .select('unipile_account_id')
+        .select('unipile_account_id, updated_at')
         .eq('user_id', `pending_${sessionId}`)
         .eq('provider', 'unipile')
         .single()
 
       if (!lookupError && pendingToken && pendingToken.unipile_account_id) {
         accountId = pendingToken.unipile_account_id
+        console.log('✅ Found account_id on retry', retries + 1, ':', accountId)
         break
       }
 
-      // Wait a bit before retrying (webhook might be delayed)
+      // Log what we found (or didn't find)
+      if (lookupError) {
+        console.log(`⏳ Retry ${retries + 1}/${maxRetries}: No account found yet (${lookupError.code || lookupError.message})`)
+      } else if (pendingToken && !pendingToken.unipile_account_id) {
+        console.log(`⏳ Retry ${retries + 1}/${maxRetries}: Record exists but no account_id yet`)
+      }
+
+      // Wait with exponential backoff before retrying (webhook might be delayed)
       if (retries < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+        const delay = baseDelay * Math.pow(2, retries) // 500ms, 1s, 2s, 4s, 8s, etc.
+        console.log(`⏳ Waiting ${delay}ms before retry ${retries + 2}/${maxRetries}...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
         retries++
       } else {
-        console.error('❌ Could not find account_id for session after retries:', sessionId)
+        console.error('❌ Could not find account_id for session after', maxRetries, 'retries:', sessionId)
         console.error('❌ Check if webhook was received at /api/webhooks/unipile/account')
         console.error('❌ Check oauth_tokens table for user_id = pending_' + sessionId)
+        console.error('❌ Check Railway logs for webhook endpoint')
         // Redirect to whatwefound anyway - the page can poll for account status
         // Store session_id in cookie so whatwefound can check later
         const response = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
@@ -234,37 +248,42 @@ export async function GET(request: NextRequest) {
       user = newUserData.user
       console.log('✅ Created new Supabase user via Admin API:', user.id)
       
-      // Establish session using Admin API magic link approach
-      // This creates a proper session without needing a password
+      // Establish session using password approach (most reliable)
+      // Generate a secure random password and sign the user in
+      const securePassword = crypto.randomUUID() + crypto.randomUUID() + crypto.randomUUID()
+      
       try {
-        // Generate magic link using Admin API
-        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email: accountEmail
-        })
+        // Set password using Admin API
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          user.id,
+          { password: securePassword }
+        )
         
-        if (linkError || !linkData?.properties?.hashed_token) {
-          console.warn('⚠️ Could not generate magic link:', linkError)
-          // Fallback: User is created, session will be established on next interaction
+        if (updateError) {
+          console.warn('⚠️ Could not set password for new user:', updateError)
         } else {
-          // Verify OTP using the hashed token to create session
-          const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: linkData.properties.hashed_token,
-            type: 'email'
+          // Sign in with the password to establish session
+          // Use the same supabase client that will set cookies properly
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: accountEmail,
+            password: securePassword
           })
           
-          if (verifyError) {
-            console.warn('⚠️ Could not verify OTP token:', verifyError)
-            // User is created but no session - whatwefound will handle this
-          } else if (sessionData?.session) {
-            console.log('✅ Session established via Admin API magic link')
+          if (signInError) {
+            console.warn('⚠️ Could not sign in new user:', signInError)
+            console.warn('⚠️ User will need to sign in manually - account is created')
+          } else if (signInData?.session) {
+            console.log('✅ Session established for new user')
             // Session cookies are set automatically by Supabase client via setAll
             // The cookie domain is handled by the createServerClient configuration
+          } else {
+            console.warn('⚠️ Sign in succeeded but no session returned')
           }
         }
       } catch (error) {
         console.warn('⚠️ Error establishing session for new user:', error)
-        // User is created, session will be established on next page load or via whatwefound
+        // User is created, but no session - they'll need to sign in manually
+        // This is okay - the account exists and account_id is stored
       }
     }
 

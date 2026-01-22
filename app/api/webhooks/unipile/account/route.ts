@@ -26,12 +26,19 @@ function verifyUnipileAuth(authHeader: string | null, expectedSecret: string): b
 }
 
 export async function POST(request: NextRequest) {
+  // Log all incoming requests for debugging
+  console.log('📧 Unipile account webhook endpoint hit:', {
+    method: request.method,
+    url: request.url,
+    headers: Object.fromEntries(request.headers.entries())
+  })
+
   try {
     // Get webhook secret from environment
     const webhookSecret = process.env.UNIPILE_WEBHOOK_SECRET
 
     if (!webhookSecret) {
-      console.error('UNIPILE_WEBHOOK_SECRET not configured')
+      console.error('❌ UNIPILE_WEBHOOK_SECRET not configured')
       return NextResponse.json(
         { error: 'Webhook secret not configured' },
         { status: 500 }
@@ -42,8 +49,19 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('Unipile-Auth')
     const body = await request.text()
 
+    console.log('📧 Webhook auth check:', {
+      hasAuthHeader: !!authHeader,
+      authHeaderLength: authHeader?.length || 0,
+      hasWebhookSecret: !!webhookSecret,
+      bodyLength: body.length
+    })
+
     if (!verifyUnipileAuth(authHeader, webhookSecret)) {
-      console.error('Invalid webhook authentication - Unipile-Auth header missing or incorrect')
+      console.error('❌ Invalid webhook authentication:', {
+        authHeader: authHeader ? `${authHeader.substring(0, 10)}...` : 'missing',
+        expectedSecret: webhookSecret ? `${webhookSecret.substring(0, 10)}...` : 'missing',
+        match: authHeader === webhookSecret
+      })
       return NextResponse.json(
         { error: 'Invalid authentication' },
         { status: 401 }
@@ -51,12 +69,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse webhook data
-    const data = JSON.parse(body)
+    let data
+    try {
+      data = JSON.parse(body)
+    } catch (parseError) {
+      console.error('❌ Failed to parse webhook body:', parseError, 'Body:', body)
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 }
+      )
+    }
 
     console.log('📧 Unipile account webhook received:', {
       status: data.status,
       accountId: data.account_id,
-      name: data.name
+      name: data.name,
+      fullPayload: data
     })
 
     // The 'name' parameter contains our internal user identifier
@@ -106,34 +134,72 @@ export async function POST(request: NextRequest) {
     // Store account_id in oauth_tokens table with a temporary user_id
     // We'll use a special format: "pending_{sessionId}" as the user_id
     // The callback will look this up and create/update the real user
-    const { error: insertError } = await supabaseAdmin
+    const pendingUserId = `pending_${sessionId}`
+    
+    console.log('📧 Storing pending account:', {
+      pendingUserId,
+      accountId: data.account_id,
+      sessionId
+    })
+
+    const { data: insertData, error: insertError } = await supabaseAdmin
       .from('oauth_tokens')
       .insert({
-        user_id: `pending_${sessionId}`, // Temporary user_id
+        user_id: pendingUserId, // Temporary user_id
         provider: 'unipile',
         unipile_account_id: data.account_id,
         provider_email: null, // Will be filled in callback
         updated_at: new Date().toISOString()
       })
+      .select()
 
     if (insertError) {
-      console.error('Error storing pending account:', insertError)
+      console.error('❌ Error storing pending account:', insertError)
       // Try update instead in case it already exists
-      const { error: updateError } = await supabaseAdmin
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('oauth_tokens')
         .update({
           unipile_account_id: data.account_id,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', `pending_${sessionId}`)
+        .eq('user_id', pendingUserId)
         .eq('provider', 'unipile')
+        .select()
       
       if (updateError) {
-        console.error('Error updating pending account:', updateError)
+        console.error('❌ Error updating pending account:', updateError)
+        return NextResponse.json(
+          { error: 'Failed to store account', details: updateError.message },
+          { status: 500 }
+        )
+      } else {
+        console.log('✅ Updated existing pending account:', updateData)
       }
+    } else {
+      console.log('✅ Inserted new pending account:', insertData)
     }
 
-    console.log('✅ Account webhook processed:', data.account_id)
+    // Verify the record was stored
+    const { data: verifyData, error: verifyError } = await supabaseAdmin
+      .from('oauth_tokens')
+      .select('unipile_account_id')
+      .eq('user_id', pendingUserId)
+      .eq('provider', 'unipile')
+      .single()
+
+    if (verifyError || !verifyData) {
+      console.error('❌ Failed to verify stored account:', verifyError)
+      return NextResponse.json(
+        { error: 'Account stored but verification failed' },
+        { status: 500 }
+      )
+    }
+
+    console.log('✅ Account webhook processed and verified:', {
+      account_id: data.account_id,
+      sessionId,
+      storedAccountId: verifyData.unipile_account_id
+    })
 
     return NextResponse.json({ 
       received: true,
