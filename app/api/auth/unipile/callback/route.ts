@@ -172,29 +172,62 @@ export async function GET(request: NextRequest) {
 
     // Now that we have the email, create user if needed
     if (!user) {
-      // No existing Supabase session - create a new user account
+      // No existing Supabase session - create a new user account using Admin API
       // This handles the case where users come directly from Unipile OAuth
       console.log('📝 No existing session - creating new Supabase user with email:', accountEmail)
       
-      // Create a Supabase user via email (no password - they'll use Unipile OAuth)
-      const { data: newUserData, error: signUpError } = await supabase.auth.signUp({
+      // Use Admin API to create a confirmed user (bypasses email confirmation requirement)
+      const { data: newUserData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
         email: accountEmail,
-        password: crypto.randomUUID(), // Random password - user won't use it
-        options: {
-          data: {
-            full_name: accountEmail.split('@')[0],
-            provider: 'unipile'
-          }
+        email_confirm: true, // Auto-confirm email so user can sign in immediately
+        user_metadata: {
+          full_name: accountEmail.split('@')[0],
+          provider: 'unipile'
+        },
+        app_metadata: {
+          provider: 'unipile'
         }
       })
       
-      if (signUpError || !newUserData.user) {
-        console.error('❌ Failed to create Supabase user:', signUpError)
+      if (createUserError || !newUserData.user) {
+        console.error('❌ Failed to create Supabase user:', createUserError)
         return NextResponse.redirect(new URL('/login?error=signup_failed', appUrl))
       }
       
       user = newUserData.user
-      console.log('✅ Created new Supabase user:', user.id)
+      console.log('✅ Created new Supabase user via Admin API:', user.id)
+      
+      // Create a temporary password and sign the user in
+      // This establishes a valid session immediately
+      const tempPassword = crypto.randomUUID()
+      try {
+        // Update user with temporary password using Admin API
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          user.id,
+          { password: tempPassword }
+        )
+        
+        if (updateError) {
+          console.warn('⚠️ Could not set temporary password:', updateError)
+        } else {
+          // Sign in with the temporary password
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: accountEmail,
+            password: tempPassword
+          })
+          
+          if (signInError) {
+            console.warn('⚠️ Could not sign in with temporary password:', signInError)
+          } else if (signInData?.session) {
+            console.log('✅ User signed in with temporary password')
+            // Session cookie is set automatically
+            // Note: User should change password later, but for now they have a valid session
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Error creating session for new user:', error)
+        // User is created, but no session - they'll need to sign in manually
+      }
     }
 
     // Update oauth_tokens with real user_id (replacing the pending one)
