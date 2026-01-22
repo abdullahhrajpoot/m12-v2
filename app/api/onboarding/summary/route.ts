@@ -77,17 +77,30 @@ export async function GET(request: NextRequest) {
           })
         }
         
-        // Look for real user_id
-        const { data: tokenData } = await supabaseAdmin
+        // Look for real user_id by finding account_id first, then user_id
+        // The sessionId corresponds to the account creation, we need to find the account_id
+        // then find the user_id associated with that account_id
+        const { data: accountToken } = await supabaseAdmin
           .from('oauth_tokens')
-          .select('user_id')
-          .eq('unipile_account_id', sessionId)
+          .select('user_id, unipile_account_id')
+          .eq('user_id', `pending_${sessionId}`)
           .eq('provider', 'unipile')
           .single()
         
-        if (tokenData?.user_id) {
-          userId = tokenData.user_id
-          console.log('✅ Found user via session_id:', userId)
+        if (accountToken?.unipile_account_id) {
+          // Found pending account - look up the real user_id by account_id
+          const { data: realToken } = await supabaseAdmin
+            .from('oauth_tokens')
+            .select('user_id')
+            .eq('unipile_account_id', accountToken.unipile_account_id)
+            .eq('provider', 'unipile')
+            .not('user_id', 'like', 'pending_%') // Exclude pending entries
+            .single()
+          
+          if (realToken?.user_id) {
+            userId = realToken.user_id
+            console.log('✅ Found user via session_id -> account_id -> user_id:', userId)
+          }
         }
       }
     }
