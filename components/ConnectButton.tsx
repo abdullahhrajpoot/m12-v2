@@ -22,8 +22,8 @@ export default function ConnectButton({
     setLoading(true)
     
     // Redirect to Unipile OAuth flow via our API route
-    // This will handle the full OAuth flow and create/update the user
-    router.push('/api/auth/unipile/connect')
+    // Use window.location for external redirects (OAuth flow)
+    window.location.href = '/api/auth/unipile/connect'
   }
 
   return (
