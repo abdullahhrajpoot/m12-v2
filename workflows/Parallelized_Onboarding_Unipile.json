@@ -140,8 +140,8 @@
         "contentType": "json",
         "bodyParameters": {
           "parameters": [
-            { "name": "since", "value": "={{ $now().minus({ days: 365 }).toISO() }}" },
-            { "name": "until", "value": "={{ $now().toISO() }}" }
+            { "name": "since", "value": "={{ $now.minus(365, 'days').toISO() }}" },
+            { "name": "until", "value": "={{ $now.toISO() }}" }
           ]
         },
         "options": { "timeout": 30000 }
