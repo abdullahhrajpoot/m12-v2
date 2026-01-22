@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
- * API endpoint to verify OAuth token has all required scopes
+ * ⚠️ DEPRECATED: API endpoint to verify OAuth token has all required scopes
+ * 
+ * **Status:** DEPRECATED - Only used by legacy Google OAuth flow
+ * Unipile OAuth handles scope verification automatically.
+ * 
+ * **Kept for:** Backward compatibility with legacy /auth/callback route
  * 
  * POST /api/auth/verify-scopes
  * Body: { access_token: string }
