@@ -22,17 +22,51 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/?error=config_error', appUrl))
     }
 
-    // Build Unipile hosted auth URL
-    // Unipile will handle the OAuth flow and redirect back to our callback
-    const successRedirectUrl = `${appUrl}/api/auth/unipile/callback`
+    // Generate expiration date (24 hours from now)
+    const expiresOn = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     
-    const unipileAuthUrl = `${unipileDsn}/api/v1/hosting/accounts/create?` +
-      `api_key=${encodeURIComponent(unipileApiKey)}&` +
-      `provider=GOOGLE&` +
-      `success_redirect=${encodeURIComponent(successRedirectUrl)}`
+    // Build redirect URLs
+    const successRedirectUrl = `${appUrl}/api/auth/unipile/callback`
+    const failureRedirectUrl = `${appUrl}/?error=oauth_failed`
+
+    // Call Unipile API to generate hosted auth link
+    // Correct endpoint: POST /api/v1/hosted/accounts/link
+    const linkResponse = await fetch(`${unipileDsn}/api/v1/hosted/accounts/link`, {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': unipileApiKey,
+        'Content-Type': 'application/json',
+        'accept': 'application/json'
+      },
+      body: JSON.stringify({
+        type: 'create',
+        providers: ['GOOGLE'],
+        api_url: unipileDsn,
+        expiresOn: expiresOn,
+        success_redirect_url: successRedirectUrl,
+        failure_redirect_url: failureRedirectUrl
+      })
+    })
+
+    if (!linkResponse.ok) {
+      const errorText = await linkResponse.text()
+      console.error('Failed to create Unipile hosted auth link:', {
+        status: linkResponse.status,
+        error: errorText
+      })
+      return NextResponse.redirect(new URL('/?error=unipile_api_error', appUrl))
+    }
+
+    const { url: unipileAuthUrl } = await linkResponse.json()
+
+    if (!unipileAuthUrl) {
+      console.error('No URL returned from Unipile API')
+      return NextResponse.redirect(new URL('/?error=no_auth_url', appUrl))
+    }
 
     console.log('🔐 Redirecting to Unipile OAuth:', {
       dsn: unipileDsn,
+      authUrl: unipileAuthUrl,
       callbackUrl: successRedirectUrl
     })
 
