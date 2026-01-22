@@ -102,14 +102,31 @@ export async function GET(request: NextRequest) {
         console.error('❌ Could not find account_id for session after retries:', sessionId)
         console.error('❌ Check if webhook was received at /api/webhooks/unipile/account')
         console.error('❌ Check oauth_tokens table for user_id = pending_' + sessionId)
-        return NextResponse.redirect(new URL('/?error=account_not_found&session=' + sessionId.substring(0, 8), appUrl))
+        // Redirect to whatwefound anyway - the page can poll for account status
+        // Store session_id in cookie so whatwefound can check later
+        const response = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
+        response.cookies.set('unipile_pending_session', sessionId, {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          maxAge: 60 * 30 // 30 minutes
+        })
+        return response
       }
     }
 
     if (!accountId) {
       console.error('❌ Could not find account_id for session:', sessionId)
       console.error('❌ This usually means the webhook has not fired yet or failed')
-      return NextResponse.redirect(new URL('/?error=account_not_found&session=' + sessionId.substring(0, 8), appUrl))
+      // Redirect to whatwefound anyway - the page can poll for account status
+      const response = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
+      response.cookies.set('unipile_pending_session', sessionId, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 60 * 30 // 30 minutes
+      })
+      return response
     }
     
     console.log('✅ Found account_id:', accountId, 'for session:', sessionId)
@@ -137,8 +154,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (!accountEmail) {
-      console.error('❌ Could not get email from Unipile account')
-      return NextResponse.redirect(new URL('/?error=no_email', appUrl))
+      console.warn('⚠️ Could not get email from Unipile account, will try to continue')
+      // Try to get email from existing user or use a placeholder
+      accountEmail = user?.email || `user_${accountId.substring(0, 8)}@unipile.temp`
     }
 
     // Now that we have the email, check/create user
@@ -251,6 +269,18 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error in Unipile callback:', error)
-    return NextResponse.redirect(new URL('/?error=callback_error', appUrl))
+    // Even on error, redirect to whatwefound - better UX than landing page
+    // The page can show a loading state and handle errors gracefully
+    const sessionId = new URL(request.url).searchParams.get('session_id')
+    const response = NextResponse.redirect(new URL(`/whatwefound?error=callback_error${sessionId ? `&session=${sessionId}` : ''}`, appUrl))
+    if (sessionId) {
+      response.cookies.set('unipile_pending_session', sessionId, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 60 * 30 // 30 minutes
+      })
+    }
+    return response
   }
 }
