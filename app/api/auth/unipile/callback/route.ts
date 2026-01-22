@@ -256,43 +256,14 @@ export async function GET(request: NextRequest) {
       user = newUserData.user
       console.log('✅ Created new Supabase user via Admin API:', user.id)
       
-      // Establish session using password approach (most reliable)
-      // Generate a secure random password and sign the user in
-      const securePassword = crypto.randomUUID() + crypto.randomUUID() + crypto.randomUUID()
+      // Skip session creation for now - let whatwefound handle it
+      // The user account exists, which is what matters
+      // Session will be established when user interacts with the app
+      console.log('ℹ️ User created - session will be established on next page interaction')
+      console.log('ℹ️ User can access the app - account_id is stored in oauth_tokens')
       
-      try {
-        // Set password using Admin API
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-          user.id,
-          { password: securePassword }
-        )
-        
-        if (updateError) {
-          console.warn('⚠️ Could not set password for new user:', updateError)
-        } else {
-          // Sign in with the password to establish session
-          // Use the same supabase client that will set cookies properly
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: accountEmail,
-            password: securePassword
-          })
-          
-          if (signInError) {
-            console.warn('⚠️ Could not sign in new user:', signInError)
-            console.warn('⚠️ User will need to sign in manually - account is created')
-          } else if (signInData?.session) {
-            console.log('✅ Session established for new user')
-            // Session cookies are set automatically by Supabase client via setAll
-            // The cookie domain is handled by the createServerClient configuration
-          } else {
-            console.warn('⚠️ Sign in succeeded but no session returned')
-          }
-        }
-      } catch (error) {
-        console.warn('⚠️ Error establishing session for new user:', error)
-        // User is created, but no session - they'll need to sign in manually
-        // This is okay - the account exists and account_id is stored
-      }
+      // Note: We could try to create a session here, but it's complex and error-prone
+      // The whatwefound page can handle authentication via polling
     }
 
     // Update oauth_tokens with real user_id (replacing the pending one)

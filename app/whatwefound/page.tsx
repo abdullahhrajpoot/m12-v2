@@ -378,12 +378,16 @@ export default function WhatWeFound() {
 
           if (data.status === 'created' && data.account_id) {
             // Account found! The callback route should have already handled user creation
-            // But we can trigger onboarding workflow if needed
             setCheckingAccount(false)
             clearInterval(pollInterval)
             
             // Account is ready, continue with normal onboarding flow
             console.log('✅ Unipile account created:', data.account_id)
+            
+            // Store session_id in localStorage so onboarding summary can use it
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem('unipile_session_id', sessionId)
+            }
           } else if (data.status === 'pending') {
             // Still waiting, continue polling
             pollCount++
@@ -463,7 +467,17 @@ export default function WhatWeFound() {
       if (hasLoadedFacts) return // Stop polling if we've already loaded facts
       
       try {
-        const response = await fetch('/api/onboarding/summary')
+        // Get session_id from URL or localStorage for fallback auth
+        const urlParams = new URLSearchParams(window.location.search)
+        const sessionId = urlParams.get('session') || 
+                         (typeof window !== 'undefined' ? window.localStorage.getItem('unipile_session_id') : null)
+        
+        // Include session_id in request if available (for users without session cookie)
+        const url = sessionId 
+          ? `/api/onboarding/summary?session_id=${sessionId}`
+          : '/api/onboarding/summary'
+        
+        const response = await fetch(url)
         const data = await response.json()
         
         if (response.ok) {

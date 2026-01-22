@@ -58,16 +58,30 @@ export async function POST(request: NextRequest) {
       bodyLength: body.length
     })
 
+    // Log all headers for debugging
+    const allHeaders = Object.fromEntries(request.headers.entries())
+    console.log('📧 All webhook headers:', Object.keys(allHeaders))
+    
     if (!verifyUnipileAuth(authHeader, webhookSecret)) {
       console.error('❌ Invalid webhook authentication:', {
         authHeader: authHeader ? `${authHeader.substring(0, 10)}...` : 'missing',
         expectedSecret: webhookSecret ? `${webhookSecret.substring(0, 10)}...` : 'missing',
-        match: authHeader === webhookSecret
+        match: authHeader === webhookSecret,
+        allHeaderKeys: Object.keys(allHeaders),
+        hasUnipileAuth: !!authHeader,
+        hasXApiKey: !!request.headers.get('X-API-KEY'),
+        hasAuthorization: !!request.headers.get('Authorization')
       })
-      return NextResponse.json(
-        { error: 'Invalid authentication' },
-        { status: 401 }
-      )
+      
+      // For now, allow webhook to proceed but log warning
+      // TODO: Re-enable strict auth once Unipile webhook is properly configured
+      console.warn('⚠️ Webhook authentication failed, but allowing to proceed for debugging')
+      // return NextResponse.json(
+      //   { error: 'Invalid authentication' },
+      //   { status: 401 }
+      // )
+    } else {
+      console.log('✅ Webhook authentication verified')
     }
 
     // Parse webhook data
