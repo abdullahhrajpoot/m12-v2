@@ -1,0 +1,8 @@
+---
+description: When editting n8n workflows only change relevant workflows
+alwaysApply: false
+---
+# Overview
+
+When editting n8n workflows ensure that nodes that were not meant to be editted remain the same after editting.
+

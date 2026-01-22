@@ -1,0 +1,468 @@
+{
+  "name": "Parallelized_Onboarding_Unipile",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parallelized-unipile-onboarding",
+        "options": { "responseData": "firstEntryJson" }
+      },
+      "name": "Unipile Onboarding Webhook",
+      "id": "webhook-unipile",
+      "typeVersion": 2.1,
+      "position": [-848, 208],
+      "type": "n8n-nodes-base.webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [{ "id": "check-user-id", "leftValue": "={{ $json.body.userId }}", "rightValue": "", "operator": { "type": "string", "operation": "exists" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Webhook Successful?",
+      "id": "webhook-check",
+      "typeVersion": 2.3,
+      "position": [-624, 208],
+      "type": "n8n-nodes-base.if",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "matchType": "allFilters",
+        "filters": { "conditions": [{ "keyName": "id", "condition": "eq", "keyValue": "={{ $('Unipile Onboarding Webhook').item.json.body.userId }}" }] }
+      },
+      "name": "Check if User Exists",
+      "id": "check-user",
+      "typeVersion": 1,
+      "position": [-416, 112],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet itemCount = 0;\nfor (const item of items) {\n  if (item.json && item.json.id) {\n    itemCount++;\n  }\n}\nreturn [{\n  json: {\n    itemCount: itemCount\n  }\n}];"
+      },
+      "id": "check-user-count",
+      "name": "Check User Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 112],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [{ "id": "check-item-count", "leftValue": "={{ $json.itemCount }}", "rightValue": 0, "operator": { "type": "number", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Is New User?",
+      "id": "is-new-user",
+      "typeVersion": 2.3,
+      "position": [-224, 112],
+      "type": "n8n-nodes-base.if",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "tableId": "users",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "id", "fieldValue": "={{ $('Unipile Onboarding Webhook').item.json.body.userId }}" },
+            { "fieldId": "email", "fieldValue": "={{ $('Unipile Onboarding Webhook').item.json.body.email }}" },
+            { "fieldId": "full_name", "fieldValue": "={{ $('Unipile Onboarding Webhook').item.json.body.fullName }}" }
+          ]
+        }
+      },
+      "name": "Create User",
+      "id": "create-user",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "users",
+        "matchType": "allFilters",
+        "filters": { "conditions": [{ "keyName": "id", "condition": "eq", "keyValue": "={{ $('Unipile Onboarding Webhook').item.json.body.userId }}" }] },
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "last_login_at", "fieldValue": "={{ $now.toISO() }}" },
+            { "fieldId": "status", "fieldValue": "active" },
+            { "fieldId": "full_name", "fieldValue": "={{ $('Unipile Onboarding Webhook').item.json.body.fullName }}" }
+          ]
+        }
+      },
+      "name": "Update Existing User",
+      "id": "update-user",
+      "typeVersion": 1,
+      "position": [0, 208],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT unipile_account_id FROM oauth_tokens WHERE user_id = '{{ $('Unipile Onboarding Webhook').item.json.body.userId }}' AND provider = 'unipile' LIMIT 1"
+      },
+      "name": "Get Unipile Account ID",
+      "id": "get-unipile-account",
+      "typeVersion": 1,
+      "position": [200, 112],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.UNIPILE_DSN }}/api/v1/accounts/={{ $json.unipile_account_id }}/messages/sync",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-KEY", "value": "={{ $env.UNIPILE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "since", "value": "={{ $now().minus({ days: 365 }).toISO() }}" },
+            { "name": "until", "value": "={{ $now().toISO() }}" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "name": "Trigger Unipile Historical Sync",
+      "id": "trigger-sync",
+      "typeVersion": 4.3,
+      "position": [400, 112],
+      "type": "n8n-nodes-base.httpRequest",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "name": "Wait for Historical Sync",
+      "id": "wait-sync",
+      "typeVersion": 1.1,
+      "position": [600, 112],
+      "type": "n8n-nodes-base.wait",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, source_item_id, subject, sender_email, content, created_at, raw_data FROM unified_events WHERE user_id = '{{ $('Unipile Onboarding Webhook').item.json.body.userId }}' AND source_type = 'email' AND created_at >= NOW() - INTERVAL '30 days' AND (subject ~* 'enrolled|parent|guardian|assignment|homeroom|roster|school|grade|teacher|class' OR sender_email ~* '.edu$|parentsquare.com|konstella.com|brightwheel.com') AND sender_email !~* 'chase.com|bankofamerica.com|wellsfargo.com' ORDER BY created_at DESC LIMIT 50"
+      },
+      "name": "Query Recent Emails",
+      "id": "query-recent",
+      "typeVersion": 1,
+      "position": [800, -80],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, source_item_id, subject, sender_email, content, created_at, raw_data FROM unified_events WHERE user_id = '{{ $('Unipile Onboarding Webhook').item.json.body.userId }}' AND source_type = 'email' AND created_at >= '2025-08-01' AND created_at < '2025-10-01' AND (subject ~* 'enrolled|parent|guardian|assignment|homeroom|roster|school|grade|teacher|class' OR sender_email ~* '.edu$|parentsquare.com|konstella.com|brightwheel.com') AND sender_email !~* 'chase.com|bankofamerica.com|wellsfargo.com' ORDER BY created_at DESC LIMIT 50"
+      },
+      "name": "Query BackToSchool Emails",
+      "id": "query-backtoschool",
+      "typeVersion": 1,
+      "position": [800, 40],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, source_item_id, subject, sender_email, content, created_at, raw_data FROM unified_events WHERE user_id = '{{ $('Unipile Onboarding Webhook').item.json.body.userId }}' AND source_type = 'email' AND created_at >= '2025-10-01' AND created_at < '2025-12-01' AND (subject ~* 'enrolled|parent|guardian|assignment|homeroom|roster|school|grade|teacher|class' OR sender_email ~* '.edu$|parentsquare.com|konstella.com|brightwheel.com') AND sender_email !~* 'chase.com|bankofamerica.com|wellsfargo.com' ORDER BY created_at DESC LIMIT 40"
+      },
+      "name": "Query Fall Emails",
+      "id": "query-fall",
+      "typeVersion": 1,
+      "position": [800, 160],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, source_item_id, subject, sender_email, content, created_at, raw_data FROM unified_events WHERE user_id = '{{ $('Unipile Onboarding Webhook').item.json.body.userId }}' AND source_type = 'email' AND created_at >= '2024-12-01' AND created_at < '2025-02-01' AND (subject ~* 'enrolled|parent|guardian|assignment|homeroom|roster|school|grade|teacher|class' OR sender_email ~* '.edu$|parentsquare.com|konstella.com|brightwheel.com') AND sender_email !~* 'chase.com|bankofamerica.com|wellsfargo.com' ORDER BY created_at DESC LIMIT 40"
+      },
+      "name": "Query Winter Emails",
+      "id": "query-winter",
+      "typeVersion": 1,
+      "position": [800, 280],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, source_item_id, subject, sender_email, content, created_at, raw_data FROM unified_events WHERE user_id = '{{ $('Unipile Onboarding Webhook').item.json.body.userId }}' AND source_type = 'email' AND created_at >= '2025-02-01' AND created_at < '2025-08-01' AND (subject ~* 'enrolled|parent|guardian|assignment|homeroom|roster|school|grade|teacher|class' OR sender_email ~* '.edu$|parentsquare.com|konstella.com|brightwheel.com') AND sender_email !~* 'chase.com|bankofamerica.com|wellsfargo.com' ORDER BY created_at DESC LIMIT 40"
+      },
+      "name": "Query Spring Emails",
+      "id": "query-spring",
+      "typeVersion": 1,
+      "position": [800, 400],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate results from 5 date-based queries\nconst items = $input.all();\nconst periodNames = ['recent', 'backtoschool', 'fall', 'winter', 'spring'];\nconst seenIds = new Set();\nconst uniqueMessages = [];\n\nlet itemIndex = 0;\nfor (const item of items) {\n  if (item.json && Array.isArray(item.json)) {\n    const period = periodNames[itemIndex] || 'unknown';\n    \n    for (const email of item.json) {\n      if (email.id && !seenIds.has(email.id)) {\n        seenIds.add(email.id);\n        uniqueMessages.push({\n          ...email,\n          _source: period\n        });\n      }\n    }\n    itemIndex++;\n  }\n}\n\nreturn [{\n  json: {\n    messages: uniqueMessages,\n    resultSizeEstimate: uniqueMessages.length\n  }\n}];"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Email Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter and score emails - reuse logic from legacy workflow\nconst items = $input.all();\nif (!items || items.length === 0 || !items[0].json || !items[0].json.messages) {\n  return [{ json: { messages: [], resultSizeEstimate: 0 } }];\n}\n\nlet messages = items[0].json.messages;\n\nconst PLATFORM_DOMAINS = [\n  'parentsquare.com', 'konstella.com', 'schooladmin.com', 'brightwheel.com',\n  'remind.com', 'classdojo.com', 'teamsnap.com', 'sportsengine.com'\n];\n\nconst HIGH_VALUE_KEYWORDS = [\n  'assignment', 'homeroom', 'classroom', 'enrolled', 'enrollment',\n  'placement', 'grade placement', 'schedule'\n];\n\nconst LOW_VALUE_KEYWORDS = [\n  'newsletter', 'digest', 'reminder', 'announcement', 'fundraiser'\n];\n\nfunction isPlatformSender(from) {\n  if (!from) return false;\n  const domain = from.split('@')[1]?.toLowerCase();\n  if (!domain) return false;\n  return PLATFORM_DOMAINS.some(pd => domain === pd || domain.endsWith('.' + pd));\n}\n\nfunction hasHighValueKeywords(subject) {\n  if (!subject) return false;\n  const lowerSubject = subject.toLowerCase();\n  return HIGH_VALUE_KEYWORDS.some(keyword => lowerSubject.includes(keyword));\n}\n\nfunction hasLowValueKeywords(subject) {\n  if (!subject) return false;\n  const lowerSubject = subject.toLowerCase();\n  return LOW_VALUE_KEYWORDS.some(keyword => lowerSubject.includes(keyword));\n}\n\n// Score messages\nfor (const msg of messages) {\n  let score = 0;\n  \n  if (hasHighValueKeywords(msg.subject)) score += 200;\n  if (hasLowValueKeywords(msg.subject)) score -= 150;\n  if (isPlatformSender(msg.sender_email)) score += 80;\n  if (msg.created_at) score += Math.floor(new Date(msg.created_at).getTime() / (1000 * 60 * 60 * 24 * 7));\n  \n  msg.score = score;\n}\n\nmessages.sort((a, b) => b.score - a.score);\n\nreturn [{ json: { messages: messages, resultSizeEstimate: messages.length } }];"
+      },
+      "id": "filter-score",
+      "name": "Filter and Score Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Select top 60 emails with sender limits\nconst items = $input.all();\nif (!items || items.length === 0 || !items[0].json || !items[0].json.messages) {\n  return [];\n}\n\nconst allMessages = items[0].json.messages;\nconst TARGET_COUNT = 60;\nconst INITIAL_SENDER_LIMIT = 4;\n\nif (allMessages.length <= TARGET_COUNT) {\n  return allMessages.map(msg => ({\n    json: {\n      id: msg.source_item_id,\n      subject: msg.subject,\n      from: msg.sender_email,\n      content: msg.content,\n      raw_data: msg.raw_data\n    }\n  }));\n}\n\nconst sortedMessages = [...allMessages].sort((a, b) => (b.score || 0) - (a.score || 0));\nlet selectedMessages = [];\nlet senderLimit = INITIAL_SENDER_LIMIT;\n\nwhile (selectedMessages.length < TARGET_COUNT && senderLimit <= 20) {\n  const senderCounts = new Map();\n  selectedMessages = [];\n  \n  for (const msg of sortedMessages) {\n    const sender = (msg.sender_email || '').toLowerCase();\n    const currentCount = senderCounts.get(sender) || 0;\n    \n    if (currentCount < senderLimit) {\n      selectedMessages.push(msg);\n      senderCounts.set(sender, currentCount + 1);\n      \n      if (selectedMessages.length >= TARGET_COUNT) break;\n    }\n  }\n  \n  if (selectedMessages.length < TARGET_COUNT) {\n    senderLimit++;\n  }\n}\n\nreturn selectedMessages.map(msg => ({\n  json: {\n    id: msg.source_item_id,\n    subject: msg.subject,\n    from: msg.sender_email,\n    content: msg.content,\n    raw_data: msg.raw_data\n  }\n}));"
+      },
+      "id": "select-60",
+      "name": "Select 60 Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract full content from unified_events - content already decoded by Unipile\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  if (!item || !item.json) continue;\n  \n  let bodyText = item.json.content || '';\n  \n  // Fallback to raw_data if content is empty\n  if (!bodyText && item.json.raw_data) {\n    const rawData = item.json.raw_data;\n    if (rawData.text_body) {\n      bodyText = rawData.text_body;\n    } else if (rawData.body) {\n      bodyText = rawData.body;\n    }\n  }\n  \n  results.push({\n    json: {\n      id: item.json.id,\n      text: bodyText,\n      from: item.json.from,\n      subject: item.json.subject\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "pull-content",
+      "name": "Extract Email Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter out blank or nearly-empty emails\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  if (!item || !item.json) continue;\n  \n  const email = item.json.text;\n  if (!email || typeof email !== 'string') continue;\n  \n  const trimmed = email.trim();\n  if (trimmed.length < 50) continue;\n  \n  const resultItem = {\n    json: {\n      text: item.json.text\n    }\n  };\n  \n  if (item.json.id !== undefined && item.json.id !== null) {\n    resultItem.json.id = item.json.id;\n  }\n  \n  results.push(resultItem);\n}\n\nif (results.length === 0) {\n  return [{\n    json: {\n      text: ''\n    }\n  }];\n}\n\nreturn results;"
+      },
+      "id": "filter-blank",
+      "name": "Filter Out Blank Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract entity facts from the following emails:\n{{ $json.text }}",
+        "options": {
+          "systemMessage": "You are an entity extraction agent. Your job is to read emails and extract factual information about people and their ongoing activities into simple, declarative sentences.\n\nWhat to extract:\n- People and their attributes (names, grades, ages, roles)\n- Relationships between people and organizations (who attends which school, who is in which ongoing activity)\n- Ongoing/recurring schedules (weekly practice times, regular class schedules)\n\nWhat NOT to extract:\n1. One-time events\n2. Policies, rules, procedures\n3. Contact information\n4. Organizations as standalone entities\n5. Vague associations\n\nThe \"will this be true next month?\" test:\nBefore extracting a fact, ask: \"Will this still be true in a month?\"\n- YES, extract: \"Emma is in Grade 1\"\n- YES, extract: \"Soccer practice is Wednesdays at 4pm\"\n- NO, skip: \"Winter Sing is December 16th\"\n\nOutput format (strict JSON):\n\n{\n  \"entities\": [\n    {\n      \"name\": \"Emma\",\n      \"type\": \"child\",\n      \"facts\": [\n        \"Emma attends Riverside Elementary.\",\n        \"Emma is in Grade 1.\"\n      ]\n    }\n  ]\n}\n\nIf no valid facts can be extracted, output:\n{\n  \"entities\": []\n}\n\nOutput JSON only. No other text."
+        }
+      },
+      "name": "Extraction System",
+      "id": "extraction-agent",
+      "typeVersion": 3,
+      "position": [2000, 200],
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "model": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "builtInTools": {},
+        "options": { "maxTokens": 2000, "temperature": 0.3 }
+      },
+      "name": "OpenAI GPT-4o",
+      "id": "gpt4o-extraction",
+      "typeVersion": 1.3,
+      "position": [1840, 400],
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "credentials": { "openAiApi": { "id": "D1MyVMAJ9zLNahg3", "name": "OpenAi account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate extractions from all emails\nconst items = $input.all();\nconst results = [];\n\nif (!items || items.length === 0) {\n  results.push({\n    json: {\n      all_extractions: 'No extractions found',\n      total_emails: 0\n    }\n  });\n  return results;\n}\n\nconst MAX_ITEMS = 100;\nconst itemsToProcess = items.length > MAX_ITEMS ? items.slice(0, MAX_ITEMS) : items;\nconst extractionParts = [];\nlet processedCount = 0;\n\nfor (let i = 0; i < itemsToProcess.length; i++) {\n  const item = itemsToProcess[i];\n  if (!item || !item.json) continue;\n  \n  try {\n    let output = item.json.output || item.json.text;\n    if (!output || (typeof output === 'string' && output.trim().length === 0)) continue;\n    \n    let outputStr = typeof output === 'string' ? output : JSON.stringify(output);\n    \n    const MAX_EXTRACTION_SIZE = 10000;\n    if (outputStr.length > MAX_EXTRACTION_SIZE) {\n      outputStr = outputStr.substring(0, MAX_EXTRACTION_SIZE) + '... [truncated]';\n    }\n    \n    extractionParts.push(`=== Email ${i + 1} Extraction ===\\n${outputStr}`);\n    processedCount++;\n  } catch (e) {\n    extractionParts.push(`=== Email ${i + 1} Extraction ===\\n[Error: ${String(e)}]`);\n    processedCount++;\n  }\n}\n\nconst allExtractions = extractionParts.length > 0 ? extractionParts.join('\\n\\n') : 'No valid extractions found';\nconst MAX_TOTAL_SIZE = 200000;\nconst finalExtractions = allExtractions.length > MAX_TOTAL_SIZE\n  ? allExtractions.substring(0, MAX_TOTAL_SIZE) + '\\n\\n... [truncated]'\n  : allExtractions;\n\nresults.push({\n  json: {\n    all_extractions: finalExtractions,\n    total_emails: items.length,\n    processed_emails: processedCount\n  }\n});\n\nreturn results;"
+      },
+      "id": "aggregate-extractions",
+      "name": "Aggregate Extractions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Consolidate the following extraction outputs:\n\n{{ $json.all_extractions }}",
+        "options": {
+          "systemMessage": "You are a consolidation agent. You receive multiple JSON outputs from parallel entity extraction runs. Your job is to merge them into a single, deduplicated result.\n\nConsolidation rules:\n1. Match entities with same/similar names\n2. Merge all facts for matched entities\n3. Consolidate overlapping facts (keep most detailed)\n4. Resolve conflicts (keep most specific)\n5. Order facts by confidence\n6. Discard low-value entities\n7. Group output by child\n8. Simple atomic facts per line\n\nOutput format (CRITICAL - use exactly this format):\nName (type)\n\nfact\nfact\n\nName (type)\n\nfact\n\nRequirements: One blank line after entity header. One fact per line. No bullets. Each fact must be complete sentence ending with period.\n\nOutput the consolidated entity list only. No other text."
+        }
+      },
+      "name": "Consolidator System",
+      "id": "consolidator-agent",
+      "typeVersion": 3,
+      "position": [2400, 200],
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "model": { "__rl": true, "value": "chatgpt-4o-latest", "mode": "list" },
+        "builtInTools": {},
+        "options": {}
+      },
+      "name": "OpenAI GPT-4o Consolidator",
+      "id": "gpt4o-consolidator",
+      "typeVersion": 1.3,
+      "position": [2240, 400],
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "credentials": { "openAiApi": { "id": "D1MyVMAJ9zLNahg3", "name": "OpenAi account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse entity-based AI output into sentence array\nlet userId = null;\ntry {\n  userId = $('Unipile Onboarding Webhook').first().json.body.userId;\n} catch (e) {\n  const items = $input.all();\n  if (items.length > 0 && items[0].json && items[0].json.userId) {\n    userId = items[0].json.userId;\n  }\n}\n\nconst items = $input.all();\nconst allFacts = [];\nconst entityHeaderRegex = /^(.+?)\\s*\\((child|teacher|activity|parent|coach|other|school|organization|person)\\)$/i;\n\nfor (const item of items) {\n  let outputText = '';\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else {\n    continue;\n  }\n  \n  const lines = outputText.split('\\n');\n  let currentEntity = null;\n  let inEntitySection = false;\n  \n  for (const line of lines) {\n    const trimmed = line.trim();\n    if (!trimmed) continue;\n    \n    const entityMatch = trimmed.match(entityHeaderRegex);\n    if (entityMatch) {\n      currentEntity = entityMatch[1].trim();\n      inEntitySection = true;\n      continue;\n    }\n    \n    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {\n      currentEntity = trimmed.replace(/[\\[\\]]/g, '').trim();\n      inEntitySection = true;\n      continue;\n    }\n    \n    if (trimmed.startsWith('-') || trimmed.startsWith('•')) {\n      let fact = trimmed.replace(/^[-•]\\s*/, '').trim();\n      if (fact && fact.length > 5) {\n        if (!fact.match(/[.!?]$/)) fact += '.';\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        allFacts.push(fact);\n      }\n      continue;\n    }\n    \n    if (inEntitySection && trimmed.match(/[.!?]$/)) {\n      if (trimmed.length >= 10) {\n        let fact = trimmed;\n        if (currentEntity) {\n          const entityFirstName = currentEntity.split(' ')[0].toLowerCase();\n          if (!fact.toLowerCase().includes(entityFirstName)) {\n            fact = `${currentEntity}: ${fact}`;\n          }\n        }\n        allFacts.push(fact);\n      }\n    }\n  }\n}\n\nconst uniqueFacts = [];\nconst seenFacts = new Set();\nfor (const fact of allFacts) {\n  const normalized = fact.toLowerCase().trim();\n  if (!seenFacts.has(normalized)) {\n    seenFacts.add(normalized);\n    uniqueFacts.push(fact);\n  }\n}\n\nconst sentencesArray = Array.isArray(uniqueFacts) ? uniqueFacts : [];\n\nreturn [{\n  json: {\n    sentences: sentencesArray,\n    userId: userId,\n    total_facts: sentencesArray.length\n  }\n}];"
+      },
+      "name": "Parse Sentences Array",
+      "id": "parse-sentences",
+      "typeVersion": 2,
+      "position": [2600, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "onboarding_summaries",
+        "matchType": "allFilters",
+        "filters": { "conditions": [{ "keyName": "user_id", "condition": "eq", "keyValue": "={{ $json.userId }}" }] },
+        "fieldsUi": { "fieldValues": [{ "fieldId": "summary_sentences", "fieldValue": "={{ Array.isArray($json.sentences) ? $json.sentences : [] }}" }] }
+      },
+      "name": "Save Onboarding Summaries",
+      "id": "save-summaries",
+      "typeVersion": 1,
+      "position": [2800, 200],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preserve original data through UPDATE operation\nconst items = $input.all();\nconst result = [];\n\nlet originalData = null;\ntry {\n  const parseNodeData = $('Parse Sentences Array').first().json;\n  if (parseNodeData) {\n    originalData = {\n      userId: parseNodeData.userId,\n      sentences: parseNodeData.sentences\n    };\n  }\n} catch (e) {\n  if (items.length > 0 && items[0].json) {\n    const item = items[0].json;\n    originalData = {\n      userId: item.user_id || item.userId,\n      sentences: item.summary_sentences || item.sentences\n    };\n  }\n}\n\nconst itemCount = 0;\n\nif (originalData) {\n  result.push({\n    json: {\n      itemCount: itemCount,\n      userId: originalData.userId,\n      sentences: originalData.sentences\n    }\n  });\n} else {\n  result.push({\n    json: {\n      itemCount: 0,\n      userId: null,\n      sentences: null\n    }\n  });\n}\n\nreturn result;"
+      },
+      "name": "Preserve Data for Insert",
+      "id": "preserve-data",
+      "typeVersion": 2,
+      "position": [3000, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 3, "leftValue": "", "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [{ "id": "check-item-count", "leftValue": "={{ $json.itemCount }}", "rightValue": 0, "operator": { "type": "number", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Check Update Result",
+      "id": "check-update",
+      "typeVersion": 2.3,
+      "position": [3200, 200],
+      "type": "n8n-nodes-base.if",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "onboarding_summaries",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "user_id", "fieldValue": "={{ $json.userId }}" },
+            { "fieldId": "summary_sentences", "fieldValue": "={{ Array.isArray($json.sentences) ? $json.sentences : [] }}" }
+          ]
+        }
+      },
+      "name": "Insert Onboarding Summaries",
+      "id": "insert-summaries",
+      "typeVersion": 1,
+      "position": [3400, 200],
+      "type": "n8n-nodes-base.supabase",
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "LiyXJ3va3HnvvAkS", "name": "Supabase account" } },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Unipile Onboarding Webhook": { "main": [[{ "node": "Webhook Successful?", "type": "main", "index": 0 }]] },
+    "Webhook Successful?": { "main": [[{ "node": "Check if User Exists", "type": "main", "index": 0 }]] },
+    "Check if User Exists": { "main": [[{ "node": "Check User Count", "type": "main", "index": 0 }]] },
+    "Check User Count": { "main": [[{ "node": "Is New User?", "type": "main", "index": 0 }]] },
+    "Is New User?": { "main": [[{ "node": "Create User", "type": "main", "index": 0 }], [{ "node": "Update Existing User", "type": "main", "index": 0 }]] },
+    "Create User": { "main": [[{ "node": "Get Unipile Account ID", "type": "main", "index": 0 }]] },
+    "Update Existing User": { "main": [[{ "node": "Get Unipile Account ID", "type": "main", "index": 0 }]] },
+    "Get Unipile Account ID": { "main": [[{ "node": "Trigger Unipile Historical Sync", "type": "main", "index": 0 }]] },
+    "Trigger Unipile Historical Sync": { "main": [[{ "node": "Wait for Historical Sync", "type": "main", "index": 0 }]] },
+    "Wait for Historical Sync": { "main": [[{ "node": "Query Recent Emails", "type": "main", "index": 0 }, { "node": "Query BackToSchool Emails", "type": "main", "index": 0 }, { "node": "Query Fall Emails", "type": "main", "index": 0 }, { "node": "Query Winter Emails", "type": "main", "index": 0 }, { "node": "Query Spring Emails", "type": "main", "index": 0 }]] },
+    "Query Recent Emails": { "main": [[{ "node": "Aggregate Email Results", "type": "main", "index": 0 }]] },
+    "Query BackToSchool Emails": { "main": [[{ "node": "Aggregate Email Results", "type": "main", "index": 0 }]] },
+    "Query Fall Emails": { "main": [[{ "node": "Aggregate Email Results", "type": "main", "index": 0 }]] },
+    "Query Winter Emails": { "main": [[{ "node": "Aggregate Email Results", "type": "main", "index": 0 }]] },
+    "Query Spring Emails": { "main": [[{ "node": "Aggregate Email Results", "type": "main", "index": 0 }]] },
+    "Aggregate Email Results": { "main": [[{ "node": "Filter and Score Emails", "type": "main", "index": 0 }]] },
+    "Filter and Score Emails": { "main": [[{ "node": "Select 60 Emails", "type": "main", "index": 0 }]] },
+    "Select 60 Emails": { "main": [[{ "node": "Extract Email Content", "type": "main", "index": 0 }]] },
+    "Extract Email Content": { "main": [[{ "node": "Filter Out Blank Emails", "type": "main", "index": 0 }]] },
+    "Filter Out Blank Emails": { "main": [[{ "node": "Extraction System", "type": "main", "index": 0 }]] },
+    "Extraction System": { "main": [[{ "node": "Aggregate Extractions", "type": "main", "index": 0 }]] },
+    "OpenAI GPT-4o": { "ai_languageModel": [[{ "node": "Extraction System", "type": "ai_languageModel", "index": 0 }]] },
+    "Aggregate Extractions": { "main": [[{ "node": "Consolidator System", "type": "main", "index": 0 }]] },
+    "Consolidator System": { "main": [[{ "node": "Parse Sentences Array", "type": "main", "index": 0 }]] },
+    "OpenAI GPT-4o Consolidator": { "ai_languageModel": [[{ "node": "Consolidator System", "type": "ai_languageModel", "index": 0 }]] },
+    "Parse Sentences Array": { "main": [[{ "node": "Save Onboarding Summaries", "type": "main", "index": 0 }]] },
+    "Save Onboarding Summaries": { "main": [[{ "node": "Preserve Data for Insert", "type": "main", "index": 0 }]] },
+    "Preserve Data for Insert": { "main": [[{ "node": "Check Update Result", "type": "main", "index": 0 }]] },
+    "Check Update Result": { "main": [[{ "node": "Insert Onboarding Summaries", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

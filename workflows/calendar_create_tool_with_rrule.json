@@ -1,0 +1,104 @@
+{
+  "parameters": {
+    "description": "Description: Create a new calendar event. Requires summary (title), start and end times. Optional: description, location, rrule.\nInput:\n\nsummary (string) - Use descriptive titles like \"Smith Family Dinner\" not just \"Dinner\"\nstart (ISO 8601 with timezone, e.g., 2025-12-05T09:00:00-08:00)\nend (ISO 8601 with timezone, e.g., 2025-12-05T10:00:00-08:00)\ndescription (string, optional) - MUST end with: \"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/[email_id] | model D1\"\nlocation (string, optional)\nrrule (string, optional) - RFC 5545 recurrence rule WITHOUT the \"RRULE:\" prefix (e.g., \"FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10\")\n\nDate/Time rules:\n\nTimezone: America/Los_Angeles unless specified otherwise\nIf year not specified: use current year unless that makes date in the past, then use next year\nDo not create events with dates before today\nNo specific time mentioned = all-day event (use date only, not dateTime)\nNo end time mentioned = assume 1 hour duration + prepend \"END TIME NOT STATED\" to summary\nUse ISO 8601 extended format (e.g., 2025-08-07T09:00:00-07:00)\n\nDuration logic for events:\nIf email specifies duration (e.g., \"2 hour meeting\", \"30 min call\"):\n- Calculate end time = start time + duration\n- If duration >= 1 hour: add to summary\n- If duration < 1 hour: prepend \"[X min]\" to summary\n\nAll-day events:\n- For birthdays, holidays, vacations: use midnight to midnight format\n- start: YYYY-MM-DDT00:00:00-08:00\n- end: YYYY-MM-DDT00:00:00-08:00 (next day)\n\nOutput: Returns event_id and htmlLink on success.",
+    "workflowId": {
+      "__rl": true,
+      "value": "ITcwJzOedm5PCsom",
+      "mode": "list"
+    },
+    "workflowInputs": {
+      "mappingMode": "defineBelow",
+      "value": {
+        "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('summary', ``, 'string') }}",
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('start', ``, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('end', ``, 'string') }}",
+        "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('description', ``, 'string') }}",
+        "location": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('location', ``, 'string') }}",
+        "rrule": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('rrule', ``, 'string') }}",
+        "access_token": "={{ $('Merge Token').first().json.access_token }}"
+      },
+      "matchingColumns": [],
+      "schema": [
+        {
+          "id": "summary",
+          "displayName": "summary",
+          "required": false,
+          "defaultMatch": false,
+          "display": true,
+          "canBeUsedToMatch": true,
+          "type": "string",
+          "removed": false
+        },
+        {
+          "id": "start",
+          "displayName": "start",
+          "required": false,
+          "defaultMatch": false,
+          "display": true,
+          "canBeUsedToMatch": true,
+          "type": "string",
+          "removed": false
+        },
+        {
+          "id": "end",
+          "displayName": "end",
+          "required": false,
+          "defaultMatch": false,
+          "display": true,
+          "canBeUsedToMatch": true,
+          "type": "string",
+          "removed": false
+        },
+        {
+          "id": "description",
+          "displayName": "description",
+          "required": false,
+          "defaultMatch": false,
+          "display": true,
+          "canBeUsedToMatch": true,
+          "type": "string",
+          "removed": false
+        },
+        {
+          "id": "location",
+          "displayName": "location",
+          "required": false,
+          "defaultMatch": false,
+          "display": true,
+          "canBeUsedToMatch": true,
+          "type": "string",
+          "removed": false
+        },
+        {
+          "id": "rrule",
+          "displayName": "rrule",
+          "required": false,
+          "defaultMatch": false,
+          "display": true,
+          "canBeUsedToMatch": true,
+          "type": "string",
+          "removed": false
+        },
+        {
+          "id": "access_token",
+          "displayName": "access_token",
+          "required": false,
+          "defaultMatch": false,
+          "display": true,
+          "canBeUsedToMatch": true,
+          "type": "string",
+          "removed": false
+        }
+      ]
+    },
+    "name": "Calendar_Create_Tool"
+  },
+  "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+  "typeVersion": 1.2,
+  "position": [
+    4736,
+    256
+  ],
+  "id": "b7d541e6-80af-4de1-8eae-ea172c9afe0d",
+  "name": "Calendar_Create_Tool"
+}

@@ -46,9 +46,39 @@ export default function DashboardPage() {
           </button>
         </div>
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-          <p className="text-slate-600">
-            Dashboard content will be implemented here. This will display family_facts, calendar events, and tasks from Supabase.
-          </p>
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-slate-900 mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <a
+                href="/portal-helper"
+                className="block p-6 bg-blue-50 border-2 border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">🔑</div>
+                  <div>
+                    <h3 className="font-semibold text-blue-900">Portal Helper</h3>
+                    <p className="text-sm text-blue-700">Manually capture content from family portals</p>
+                  </div>
+                </div>
+              </a>
+              
+              <div className="p-6 bg-slate-50 border-2 border-slate-200 rounded-xl opacity-50">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">📊</div>
+                  <div>
+                    <h3 className="font-semibold text-slate-700">Family Dashboard</h3>
+                    <p className="text-sm text-slate-600">Coming soon</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-slate-200">
+            <p className="text-slate-600">
+              Dashboard content will be implemented here. This will display family_facts, calendar events, and tasks from Supabase.
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -173,7 +173,7 @@ access_token: "={{ $('Merge Token').first().json.access_token }}"
 
 ```json
 {
-  "description": "Description: Create a new task. Requires title. Optional: notes, due date.\nInput:\n\ntitle (string) - Prepend with verbs when confident: \"Pack Lunch\", \"Sign Document\", \"Return Library Books\"\nnotes (string, optional) - MUST end with: \"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/[email_id] | model D1\"\ndue (RFC 3339 format, e.g., 2025-12-05T00:00:00.000Z, optional)\n\nDue date rules:\n\nAll tasks need due dates\nTask relates to event with no due date = use event start time as due date\nDo not create tasks with due dates before today. If task is urgent, set due date as today.\nDue dates should end in 00:00:00.000Z (midnight UTC)\nLunch packing tasks: due 10pm night before the event\n\nScheduling deadlines rule:\nWhen you find a task that says something must be scheduled before date X, create TWO tasks:\n\nScheduling Task: \"Schedule [activity]\" - due date = halfway between today and X\nCompletion Task: \"Confirm [activity] completed\" - due date = X",
+  "description": "Description: Create a new task. Requires title and due date. Optional: notes.\nInput:\n\ntitle (string, REQUIRED) - Prepend with verbs when confident: \"Pack Lunch\", \"Sign Document\", \"Return Library Books\"\nnotes (string, optional) - MUST end with: \"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/[email_id] | model D1\"\ndue (RFC 3339 format, e.g., 2025-12-05T00:00:00.000Z, REQUIRED)\n\nDue date rules:\n\nAll tasks MUST have due dates\nTask relates to event with no due date = use event start time as due date\nDo not create tasks with due dates before today. If task is urgent, set due date as today.\nDue dates should end in 00:00:00.000Z (midnight UTC)\nLunch packing tasks: due 10pm night before the event\n\nScheduling deadlines rule:\nWhen you find a task that says something must be scheduled before date X, create TWO tasks:\n\nScheduling Task: \"Schedule [activity]\" - due date = halfway between today and X\nCompletion Task: \"Confirm [activity] completed\" - due date = X",
   "workflowId": {
     "__rl": true,
     "value": "KYl2xtkD9QvvVlki",
@@ -192,7 +192,7 @@ access_token: "={{ $('Merge Token').first().json.access_token }}"
       {
         "id": "title",
         "displayName": "title",
-        "required": false,
+        "required": true,
         "defaultMatch": false,
         "display": true,
         "canBeUsedToMatch": true,
@@ -212,7 +212,7 @@ access_token: "={{ $('Merge Token').first().json.access_token }}"
       {
         "id": "due",
         "displayName": "due",
-        "required": false,
+        "required": true,
         "defaultMatch": false,
         "display": true,
         "canBeUsedToMatch": true,
@@ -424,7 +424,7 @@ access_token: "={{ $('Merge Token').first().json.access_token }}"
 
 ```json
 {
-  "description": "Description: Create a new calendar event. Requires summary (title), start and end times. Optional: description, location.\nInput:\n\nsummary (string) - Use descriptive titles like \"Smith Family Dinner\" not just \"Dinner\"\nstart (ISO 8601 with timezone, e.g., 2025-12-05T09:00:00-08:00)\nend (ISO 8601 with timezone, e.g., 2025-12-05T10:00:00-08:00)\ndescription (string, optional) - MUST end with: \"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/[email_id] | model D1\"\nlocation (string, optional)\n\nDate/Time rules:\n\nTimezone: America/Los_Angeles unless specified otherwise\nIf year not specified: use current year unless that makes date in the past, then use next year\nDo not create events with dates before today\nNo specific time mentioned = all-day event (use date only, not dateTime)\nNo end time mentioned = assume 1 hour duration + prepend \"END TIME NOT STATED\" to summary\nUse ISO 8601 extended format (e.g., 2025-08-07T09:00:00-07:00)\n\nDuration guidelines:\n\nDinner: 1.5-2 hours\nMeeting: 30-60 minutes\nBirthday party: 2-3 hours",
+  "description": "Description: Create a new calendar event. Requires summary (title), start and end times. Optional: description, location, rrule.\nInput:\n\nsummary (string) - Use descriptive titles like \"Smith Family Dinner\" not just \"Dinner\"\nstart (ISO 8601 with timezone, e.g., 2025-12-05T09:00:00-08:00)\nend (ISO 8601 with timezone, e.g., 2025-12-05T10:00:00-08:00)\ndescription (string, optional) - MUST end with: \"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/[email_id] | model D1\"\nlocation (string, optional)\nrrule (string, optional) - RFC 5545 recurrence rule WITHOUT the \"RRULE:\" prefix (e.g., \"FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10\")\n\nDate/Time rules:\n\nTimezone: America/Los_Angeles unless specified otherwise\nIf year not specified: use current year unless that makes date in the past, then use next year\nDo not create events with dates before today\nNo specific time mentioned = all-day event (use date only, not dateTime)\nNo end time mentioned = assume 1 hour duration + prepend \"END TIME NOT STATED\" to summary\nUse ISO 8601 extended format (e.g., 2025-08-07T09:00:00-07:00)\n\nDuration guidelines:\n\nDinner: 1.5-2 hours\nMeeting: 30-60 minutes\nBirthday party: 2-3 hours",
   "workflowId": {
     "__rl": true,
     "value": "ITcwJzOedm5PCsom",
@@ -493,6 +493,16 @@ access_token: "={{ $('Merge Token').first().json.access_token }}"
         "removed": false
       },
       {
+        "id": "rrule",
+        "displayName": "rrule",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "canBeUsedToMatch": true,
+        "type": "string",
+        "removed": false
+      },
+      {
         "id": "access_token",
         "displayName": "access_token",
         "required": false,
@@ -517,7 +527,7 @@ access_token: "={{ $('Merge Token').first().json.access_token }}"
 
 ```json
 {
-  "description": "Description: Update an existing calendar event. Requires event_id from search results. Only provided fields are changed.\nInput:\n\nevent_id (string from Calendar_Search or Calendar_By_Date results)\nsummary (string, optional)\nstart (ISO 8601 with timezone, optional)\nend (ISO 8601 with timezone, optional)\ndescription (string, optional)\nlocation (string, optional)\n\nImportant: Do not make up event_id. All event_ids come from search results.",
+  "description": "Description: Update an existing calendar event. Requires event_id from search results. Only provided fields are changed.\nInput:\n\nevent_id (string from Calendar_Search or Calendar_By_Date results)\nsummary (string, optional)\nstart (ISO 8601 with timezone, optional)\nend (ISO 8601 with timezone, optional)\ndescription (string, optional)\nlocation (string, optional)\nrrule (string, optional) - RFC 5545 recurrence rule WITHOUT the \"RRULE:\" prefix (e.g., \"FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10\")\n\nImportant: Do not make up event_id. All event_ids come from search results.",
   "workflowId": {
     "__rl": true,
     "value": "WBRw3JHDEvofddy6",
@@ -589,6 +599,16 @@ access_token: "={{ $('Merge Token').first().json.access_token }}"
       {
         "id": "location",
         "displayName": "location",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "canBeUsedToMatch": true,
+        "type": "string",
+        "removed": false
+      },
+      {
+        "id": "rrule",
+        "displayName": "rrule",
         "required": false,
         "defaultMatch": false,
         "display": true,

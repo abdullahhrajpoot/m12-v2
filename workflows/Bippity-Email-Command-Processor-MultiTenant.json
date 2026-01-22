@@ -119,25 +119,28 @@
     },
     {
       "parameters": {
-        "promptType": "define",
-        "text": "=You are a command parser for Bippity.boo, a family communication assistant.\n\nUsers send emails to fgm@gmail.com with commands to:\n1. Manage family facts (create, update, delete, list/search)\n2. Manage calendar events (create, update, search, get by date)\n3. Manage tasks (create, update, complete, delete, search)\n\nParse this email and extract commands. Be flexible with natural language.\n\nEmail from: {{ $('Get Unified Event').first().json.sender_email }}\nSubject: {{ $('Get Unified Event').first().json.subject }}\nBody:\n{{ $('Get Unified Event').first().json.content }}\n\nOutput ONLY valid JSON in this exact format (no markdown, no code blocks, just the JSON object):\n{\n  \"command_type\": \"family_facts\" | \"calendar\" | \"tasks\" | \"mixed\",\n  \"operations\": [\n    {\n      \"operation\": \"create\" | \"read\" | \"update\" | \"delete\" | \"search\",\n      \"entity\": \"family_fact\" | \"calendar_event\" | \"task\",\n      \"parameters\": {},\n      \"confidence\": 0.95,\n      \"original_text\": \"excerpt from email\"\n    }\n  ],\n  \"requires_confirmation\": false\n}\n\nIf unclear, set confidence low (<0.7) and return empty operations array.",
-        "options": {
-          "systemMessage": "You are a precise command parser. Output ONLY valid JSON. No explanations. No markdown code blocks. Just the JSON object. If you cannot parse a command, return {\"command_type\": \"unknown\", \"operations\": [], \"requires_confirmation\": false}."
-        },
-        "agent": "openAiFunctionsAgent",
         "model": {
           "__rl": true,
           "mode": "list",
           "value": "gpt-4o"
         },
-        "tools": {
-          "values": []
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 2000,
+          "systemMessage": "You are a precise command parser. Output ONLY valid JSON. No explanations. No markdown code blocks. Just the JSON object. If you cannot parse a command, return {\"command_type\": \"unknown\", \"operations\": [], \"requires_confirmation\": false}."
+        },
+        "messages": {
+          "values": [
+            {
+              "message": "=You are a command parser for Bippity.boo, a family communication assistant.\n\nUsers send emails to fgm@gmail.com with commands to:\n1. Manage family facts (create, update, delete, list/search)\n2. Manage calendar events (create, update, search, get by date)\n3. Manage tasks (create, update, complete, delete, search)\n\nParse this email and extract commands. Be flexible with natural language.\n\nEmail from: {{ $('Get Unified Event').first().json.sender_email }}\nSubject: {{ $('Get Unified Event').first().json.subject }}\nBody:\n{{ $('Get Unified Event').first().json.content }}\n\nOutput ONLY valid JSON in this exact format (no markdown, no code blocks, just the JSON object):\n{\n  \"command_type\": \"family_facts\" | \"calendar\" | \"tasks\" | \"mixed\",\n  \"operations\": [\n    {\n      \"operation\": \"create\" | \"read\" | \"update\" | \"delete\" | \"search\",\n      \"entity\": \"family_fact\" | \"calendar_event\" | \"task\",\n      \"parameters\": {},\n      \"confidence\": 0.95,\n      \"original_text\": \"excerpt from email\"\n    }\n  ],\n  \"requires_confirmation\": false\n}\n\nIf unclear, set confidence low (<0.7) and return empty operations array."
+            }
+          ]
         }
       },
       "id": "parse-command-ai",
       "name": "Parse Command with AI",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3,
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
       "position": [400, 0],
       "alwaysOutputData": true,
       "credentials": {
@@ -149,32 +152,7 @@
     },
     {
       "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4o"
-        },
-        "builtInTools": {},
-        "options": {
-          "maxTokens": 2000,
-          "temperature": 0.3
-        }
-      },
-      "id": "gpt4o-model",
-      "name": "GPT-4o Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [400, 200],
-      "credentials": {
-        "openAiApi": {
-          "id": "D1MyVMAJ9zLNahg3",
-          "name": "OpenAi account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Parse AI output as JSON\nconst items = $input.all();\nconst eventData = $('Get Unified Event').first().json;\nconst results = [];\n\nfor (const item of items) {\n  try {\n    let parsed = {};\n    const output = item.json?.output || item.json?.text || item.json?.response || '';\n    \n    // Try to extract JSON from AI output (may be wrapped in markdown code blocks)\n    let jsonStr = String(output).trim();\n    \n    // Remove markdown code blocks if present\n    if (jsonStr.includes('```')) {\n      const match = jsonStr.match(/```(?:json)?\\n([\\s\\S]*?)\\n```/);\n      if (match && match[1]) {\n        jsonStr = match[1].trim();\n      } else {\n        // Try without language tag\n        const match2 = jsonStr.match(/```\\n([\\s\\S]*?)\\n```/);\n        if (match2 && match2[1]) {\n          jsonStr = match2[1].trim();\n        }\n      }\n    }\n    \n    // Remove leading/trailing whitespace and try to parse\n    jsonStr = jsonStr.trim();\n    \n    // Ensure it starts with { or [\n    if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {\n      // Try to find JSON in the string\n      const jsonMatch = jsonStr.match(/({[\\s\\S]*})/);\n      if (jsonMatch) {\n        jsonStr = jsonMatch[1];\n      }\n    }\n    \n    parsed = JSON.parse(jsonStr);\n    \n    // Merge with original event data\n    results.push({\n      json: {\n        ...eventData,\n        parsed_commands: parsed,\n        command_type: parsed.command_type || 'unknown',\n        operations: parsed.operations || [],\n        requires_confirmation: parsed.requires_confirmation || false\n      }\n    });\n  } catch (e) {\n    // If parsing fails, treat as error\n    results.push({\n      json: {\n        ...eventData,\n        parsed_commands: { error: String(e), raw_output: item.json?.output || item.json?.text || '' },\n        command_type: 'error',\n        operations: [],\n        parse_error: true\n      }\n    });\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { ...eventData, error: 'No AI output' } }];"
+        "jsCode": "// Parse AI output as JSON\nconst items = $input.all();\nconst eventData = $('Get Unified Event').first().json;\nconst results = [];\n\nfor (const item of items) {\n  try {\n    let parsed = {};\n    // Chat Model node outputs to 'message' field with 'content' property\n    const output = item.json?.message?.content || item.json?.output || item.json?.text || item.json?.response || '';\n    \n    // Try to extract JSON from AI output (may be wrapped in markdown code blocks)\n    let jsonStr = String(output).trim();\n    \n    // Remove markdown code blocks if present\n    if (jsonStr.includes('```')) {\n      const match = jsonStr.match(/```(?:json)?\\n([\\s\\S]*?)\\n```/);\n      if (match && match[1]) {\n        jsonStr = match[1].trim();\n      } else {\n        // Try without language tag\n        const match2 = jsonStr.match(/```\\n([\\s\\S]*?)\\n```/);\n        if (match2 && match2[1]) {\n          jsonStr = match2[1].trim();\n        }\n      }\n    }\n    \n    // Remove leading/trailing whitespace and try to parse\n    jsonStr = jsonStr.trim();\n    \n    // Ensure it starts with { or [\n    if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {\n      // Try to find JSON in the string\n      const jsonMatch = jsonStr.match(/({[\\s\\S]*})/);\n      if (jsonMatch) {\n        jsonStr = jsonMatch[1];\n      }\n    }\n    \n    parsed = JSON.parse(jsonStr);\n    \n    // Merge with original event data\n    results.push({\n      json: {\n        ...eventData,\n        parsed_commands: parsed,\n        command_type: parsed.command_type || 'unknown',\n        operations: parsed.operations || [],\n        requires_confirmation: parsed.requires_confirmation || false\n      }\n    });\n  } catch (e) {\n    // If parsing fails, treat as error\n    results.push({\n      json: {\n        ...eventData,\n        parsed_commands: { error: String(e), raw_output: item.json?.message?.content || item.json?.output || item.json?.text || '' },\n        command_type: 'error',\n        operations: [],\n        parse_error: true\n      }\n    });\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { ...eventData, error: 'No AI output' } }];"
       },
       "id": "parse-json",
       "name": "Parse AI Output JSON",
@@ -635,8 +613,7 @@
       "main": [[{ "node": "Parse Command with AI", "type": "main", "index": 0 }]]
     },
     "Parse Command with AI": {
-      "main": [[{ "node": "Parse AI Output JSON", "type": "main", "index": 0 }]],
-      "ai_languageModel": [[{ "node": "GPT-4o Model", "type": "ai_languageModel", "index": 0 }]]
+      "main": [[{ "node": "Parse AI Output JSON", "type": "main", "index": 0 }]]
     },
     "Parse AI Output JSON": {
       "main": [[{ "node": "Parse Successful?", "type": "main", "index": 0 }]]

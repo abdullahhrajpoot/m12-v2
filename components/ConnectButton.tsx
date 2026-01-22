@@ -3,10 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase-client'
 
 interface ConnectButtonProps {
   text?: string
@@ -19,61 +17,13 @@ export default function ConnectButton({
 }: ConnectButtonProps) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
-  const handleConnect = async () => {
+  const handleConnect = () => {
     setLoading(true)
-
-    try {
-      // Get the app URL from environment variable or use window.location.origin
-      // But avoid localhost URLs in production
-      let appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-      
-      // If we're on bippity.boo, always use https://bippity.boo
-      if (window.location.hostname === 'bippity.boo') {
-        appUrl = 'https://bippity.boo'
-      }
-      
-      console.log('ConnectButton - OAuth redirect URL:', appUrl)
-      
-      // Sign out first to force a fresh OAuth flow
-      // This ensures existing users go through full re-authentication
-      // which triggers the n8n webhook to update their status
-      await supabase.auth.signOut()
-      
-      // Sign in with Google OAuth using Supabase Auth
-      // Request scopes for Gmail, Calendar, and Tasks access
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${appUrl}/auth/callback`,
-          scopes: [
-            'email',
-            'profile',
-            'https://www.googleapis.com/auth/gmail.readonly',
-            'https://www.googleapis.com/auth/gmail.labels',
-            'https://www.googleapis.com/auth/calendar',
-            'https://www.googleapis.com/auth/tasks',
-          ].join(' '),
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      })
-
-      if (error) {
-        throw error
-      }
-
-      // Supabase will handle the redirect automatically
-      // The user will be redirected to Google, then back to /auth/callback
-      
-    } catch (error: any) {
-      console.error('Supabase Auth Error:', error)
-      toast.error(error.message || "Connection failed. Please try again.")
-      setLoading(false)
-    }
+    
+    // Redirect to Unipile OAuth flow via our API route
+    // This will handle the full OAuth flow and create/update the user
+    router.push('/api/auth/unipile/connect')
   }
 
   return (
