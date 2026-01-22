@@ -229,10 +229,13 @@ export async function GET(request: NextRequest) {
 
     if (webhookUrl) {
       try {
+        // Workflow expects payload nested under 'body' key
         const webhookPayload = {
-          userId: user.id,
-          email: user.email,
-          fullName: user.user_metadata?.full_name || user.email?.split('@')[0]
+          body: {
+            userId: user.id,
+            email: user.email,
+            fullName: user.user_metadata?.full_name || user.email?.split('@')[0]
+          }
         }
 
         console.log('📞 Triggering n8n webhook:', webhookUrl)
