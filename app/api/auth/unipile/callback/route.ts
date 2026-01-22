@@ -50,38 +50,6 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    let user = null
-    const { data: { user: existingUser }, error: authError } = await supabase.auth.getUser()
-
-    if (existingUser) {
-      user = existingUser
-      console.log('✅ Authenticated user found:', user.id, 'email:', user.email)
-    } else {
-      // No existing Supabase session - create a new user account
-      // This handles the case where users come directly from Unipile OAuth
-      console.log('📝 No existing session - creating new Supabase user with email:', email)
-      
-      // Create a Supabase user via email (no password - they'll use Unipile OAuth)
-      const { data: newUserData, error: signUpError } = await supabase.auth.signUp({
-        email: email,
-        password: crypto.randomUUID(), // Random password - user won't use it
-        options: {
-          data: {
-            full_name: email.split('@')[0],
-            provider: 'unipile'
-          }
-        }
-      })
-      
-      if (signUpError || !newUserData.user) {
-        console.error('❌ Failed to create Supabase user:', signUpError)
-        return NextResponse.redirect(new URL('/login?error=signup_failed', appUrl))
-      }
-      
-      user = newUserData.user
-      console.log('✅ Created new Supabase user:', user.id)
-    }
-
     // Store Unipile account_id in oauth_tokens table using service role
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -130,7 +98,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get account email from Unipile API
-    let accountEmail = user.email || null
+    let accountEmail: string | null = null
     try {
       const unipileDsn = process.env.UNIPILE_DSN
       const unipileApiKey = process.env.UNIPILE_API_KEY
@@ -144,11 +112,49 @@ export async function GET(request: NextRequest) {
         
         if (accountResponse.ok) {
           const accountData = await accountResponse.json()
-          accountEmail = accountData.email || accountData.provider_email || user.email
+          accountEmail = accountData.email || accountData.provider_email || null
         }
       }
     } catch (error) {
       console.warn('Could not fetch account email from Unipile:', error)
+    }
+
+    if (!accountEmail) {
+      console.error('❌ Could not get email from Unipile account')
+      return NextResponse.redirect(new URL('/?error=no_email', appUrl))
+    }
+
+    // Now that we have the email, check/create user
+    let user = null
+    const { data: { user: existingUser }, error: authError } = await supabase.auth.getUser()
+
+    if (existingUser) {
+      user = existingUser
+      console.log('✅ Authenticated user found:', user.id, 'email:', user.email)
+    } else {
+      // No existing Supabase session - create a new user account
+      // This handles the case where users come directly from Unipile OAuth
+      console.log('📝 No existing session - creating new Supabase user with email:', accountEmail)
+      
+      // Create a Supabase user via email (no password - they'll use Unipile OAuth)
+      const { data: newUserData, error: signUpError } = await supabase.auth.signUp({
+        email: accountEmail,
+        password: crypto.randomUUID(), // Random password - user won't use it
+        options: {
+          data: {
+            full_name: accountEmail.split('@')[0],
+            provider: 'unipile'
+          }
+        }
+      })
+      
+      if (signUpError || !newUserData.user) {
+        console.error('❌ Failed to create Supabase user:', signUpError)
+        return NextResponse.redirect(new URL('/login?error=signup_failed', appUrl))
+      }
+      
+      user = newUserData.user
+      console.log('✅ Created new Supabase user:', user.id)
     }
 
     // Update oauth_tokens with real user_id (replacing the pending one)
@@ -165,7 +171,7 @@ export async function GET(request: NextRequest) {
         user_id: user.id,
         provider: 'unipile',
         unipile_account_id: accountId,
-        provider_email: accountEmail,
+        provider_email: accountEmail || user.email || null,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,provider'
