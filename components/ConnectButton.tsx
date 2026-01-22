@@ -23,7 +23,13 @@ export default function ConnectButton({
     
     // Redirect to Unipile OAuth flow via our API route
     // Use window.location for external redirects (OAuth flow)
+    // This will navigate away from the page, so loading state will reset
     window.location.href = '/api/auth/unipile/connect'
+    
+    // If redirect doesn't happen, reset loading after a timeout
+    setTimeout(() => {
+      setLoading(false)
+    }, 2000)
   }
 
   return (

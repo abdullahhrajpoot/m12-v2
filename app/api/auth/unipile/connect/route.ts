@@ -17,9 +17,19 @@ export async function GET(request: NextRequest) {
     if (!unipileDsn || !unipileApiKey) {
       console.error('Unipile configuration missing:', {
         hasDsn: !!unipileDsn,
-        hasApiKey: !!unipileApiKey
+        hasApiKey: !!unipileApiKey,
+        dsn: unipileDsn,
+        apiKeyLength: unipileApiKey?.length
       })
-      return NextResponse.redirect(new URL('/?error=config_error', appUrl))
+      // Return JSON error instead of redirect for debugging
+      return NextResponse.json(
+        { 
+          error: 'Unipile configuration missing',
+          hasDsn: !!unipileDsn,
+          hasApiKey: !!unipileApiKey
+        },
+        { status: 500 }
+      )
     }
 
     // Build Unipile hosted auth URL
