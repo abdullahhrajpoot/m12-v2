@@ -128,7 +128,7 @@
     },
     {
       "parameters": {
-        "url": "={{ $env.UNIPILE_DSN || 'https://api27.unipile.com:15744' }}/api/v1/accounts/={{ $json.unipile_account_id }}/messages/sync",
+        "url": "={{ ($env.UNIPILE_DSN || 'https://api27.unipile.com:15744').toString() }}/api/v1/accounts/={{ ($json.unipile_account_id || '').toString() }}/messages/sync",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
