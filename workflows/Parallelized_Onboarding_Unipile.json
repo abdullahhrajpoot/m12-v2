@@ -128,11 +128,11 @@
     },
     {
       "parameters": {
-        "url": "={{ ($env.UNIPILE_DSN || 'https://api27.unipile.com:15744').toString() }}/api/v1/accounts/={{ ($json.unipile_account_id || '').toString() }}/messages/sync",
+        "url": "=https://api27.unipile.com:15744/api/v1/accounts/={{ $json.unipile_account_id }}/messages/sync",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-API-KEY", "value": "={{ $env.UNIPILE_API_KEY || '' }}" },
+            { "name": "X-API-KEY", "value": "={{ $env.UNIPILE_API_KEY }}" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
