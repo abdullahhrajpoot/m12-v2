@@ -1,0 +1,142 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-01-09T18:59:03.473Z",
+    "createdAt": "2025-12-08T19:16:07.170Z",
+    "id": "Mes8HQVlpiFkm6Dj",
+    "name": "Calendar_By_Date_MultiTenant",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "start_date"
+              },
+              {
+                "name": "end_date"
+              },
+              {
+                "name": "access_token"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "34fba940-739d-49c4-9b92-105f09b045ab",
+        "name": "Start"
+      },
+      {
+        "parameters": {
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "timeMin",
+                "value": "={{ $json.start_date }}"
+              },
+              {
+                "name": "timeMax",
+                "value": "={{ $json.end_date }}"
+              },
+              {
+                "name": "singleEvents",
+                "value": "true"
+              },
+              {
+                "name": "orderBy",
+                "value": "startTime"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $json.access_token }}"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          224,
+          0
+        ],
+        "id": "b6bdab37-bf8b-4729-90c8-8ba5c89e47c5",
+        "name": "Get Events By Date",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const startDate = $('Start').first().json.start_date;\nconst endDate = $('Start').first().json.end_date;\nconst response = $input.first().json;\n\n// Check for error response\nif (response.error) {\n  return [{ json: { success: false, error: response.error.message || response.error, code: response.error.code } }];\n}\n\nconst events = response.items || [];\n\nif (events.length === 0) {\n  return [{ json: { success: true, message: `No events found between ${startDate} and ${endDate}`, results: [] } }];\n}\n\nreturn [{ json: { success: true, count: events.length, events: events } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          448,
+          0
+        ],
+        "id": "43b73d80-4d8a-41aa-9deb-4f1251ab0556",
+        "name": "Format Results",
+        "alwaysOutputData": true
+      }
+    ],
+    "connections": {
+      "Start": {
+        "main": [
+          [
+            {
+              "node": "Get Events By Date",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Events By Date": {
+        "main": [
+          [
+            {
+              "node": "Format Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "timeSavedMode": "fixed",
+      "errorWorkflow": "fyNaHTZY8javrwU5"
+    },
+    "staticData": null,
+    "meta": null,
+    "pinData": {},
+    "versionId": "d90299fa-7cbe-47ba-9526-52fa619bfa62",
+    "activeVersionId": "d90299fa-7cbe-47ba-9526-52fa619bfa62",
+    "versionCounter": 13,
+    "triggerCount": 0
+  }
+}

@@ -50,19 +50,6 @@ export default function DashboardPage() {
             <h2 className="text-xl font-semibold text-slate-900 mb-4">Quick Actions</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <a
-                href="/tasks"
-                className="block p-6 bg-green-50 border-2 border-green-200 rounded-xl hover:bg-green-100 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl">✅</div>
-                  <div>
-                    <h3 className="font-semibold text-green-900">Tasks</h3>
-                    <p className="text-sm text-green-700">View and manage your family's tasks</p>
-                  </div>
-                </div>
-              </a>
-              
-              <a
                 href="/portal-helper"
                 className="block p-6 bg-blue-50 border-2 border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
               >
@@ -74,6 +61,16 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </a>
+              
+              <div className="p-6 bg-slate-50 border-2 border-slate-200 rounded-xl opacity-50">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">📊</div>
+                  <div>
+                    <h3 className="font-semibold text-slate-700">Family Dashboard</h3>
+                    <p className="text-sm text-slate-600">Coming soon</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

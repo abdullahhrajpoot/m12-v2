@@ -1,0 +1,167 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-01-16T19:10:28.248Z",
+    "createdAt": "2025-12-08T19:15:41.843Z",
+    "id": "kQJv5Vc1xBBqBaXG",
+    "name": "Calendar_Search_MultiTenant",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "query"
+              },
+              {
+                "name": "access_token"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "36164e89-a10c-43dd-b3e9-cb8720aecc8c",
+        "name": "Start"
+      },
+      {
+        "parameters": {
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+          "method": "GET",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $json.access_token }}"
+              }
+            ]
+          },
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "q",
+                "value": "={{ $json.query }}"
+              },
+              {
+                "name": "timeMin",
+                "value": "={{ $now.minus({years: 1}).toISO() }}"
+              },
+              {
+                "name": "timeMax",
+                "value": "={{ $now.plus({years: 1}).toISO() }}"
+              },
+              {
+                "name": "singleEvents",
+                "value": "false"
+              },
+              {
+                "name": "maxResults",
+                "value": "20"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          224,
+          0
+        ],
+        "id": "8e5a62fa-22a4-4779-84ca-54fa79008a64",
+        "name": "Search Events",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Pass through the already-formatted results from Filter Calendar Results\nconst input = $input.first().json;\n\n// If it's already in the correct format (from Filter Calendar Results), just pass it through\nif (input.success !== undefined && (input.events || input.results)) {\n  return [{ json: input }];\n}\n\n// Fallback for error cases\nif (input.error || input.success === false) {\n  return [{ json: input }];\n}\n\n// Legacy format handling (shouldn't happen with new flow)\nreturn [{ json: input }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          448,
+          0
+        ],
+        "id": "1910c784-4dbe-4b4e-9755-63b866c4c7a0",
+        "name": "Format Results",
+        "alwaysOutputData": true
+      },
+      {
+        "id": "filter-calendar-results",
+        "name": "Filter Calendar Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          672,
+          0
+        ],
+        "parameters": {
+          "jsCode": "const response = $input.first().json;\n\n// Check for error response first\nif (response.error) {\n  return [{ json: { success: false, error: response.error.message || response.error, code: response.error.code } }];\n}\n\nconst items = response.items || [];\n\n// Limit to 20 results\nconst limitedItems = items.slice(0, 20);\n\n// Filter out unwanted fields\nconst filteredItems = limitedItems.map(event => {\n  const filtered = { ...event };\n  \n  // Remove unwanted fields\n  delete filtered.htmlLink;\n  delete filtered.attendees;\n  delete filtered.conferenceData;\n  delete filtered.extendedProperties;\n  delete filtered.creator;\n  delete filtered.organizer;\n  delete filtered.reminders;\n  delete filtered.eventType;\n  delete filtered.transparency;\n  delete filtered.visibility;\n  delete filtered.ownership;\n  delete filtered.kind;\n  delete filtered.locked;\n  delete filtered.source;\n  delete filtered.workingLocationProperties;\n  \n  return filtered;\n});\n\n// Return in same format as original Format Results node\nif (filteredItems.length === 0) {\n  const query = $('Start').first().json.query || '';\n  return [{ json: { success: true, message: `No events found for '${query}'`, results: [] } }];\n}\n\nreturn [{ json: { success: true, count: filteredItems.length, events: filteredItems } }];"
+        }
+      }
+    ],
+    "connections": {
+      "Start": {
+        "main": [
+          [
+            {
+              "node": "Search Events",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Search Events": {
+        "main": [
+          [
+            {
+              "node": "Filter Calendar Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter Calendar Results": {
+        "main": [
+          [
+            {
+              "node": "Format Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "timeSavedMode": "fixed",
+      "errorWorkflow": "fyNaHTZY8javrwU5"
+    },
+    "staticData": null,
+    "meta": null,
+    "pinData": {},
+    "versionId": "337d959d-bf5a-4913-b3b4-1067b5b90359",
+    "activeVersionId": "337d959d-bf5a-4913-b3b4-1067b5b90359",
+    "versionCounter": 22,
+    "triggerCount": 0
+  }
+}

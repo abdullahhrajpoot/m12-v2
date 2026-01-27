@@ -1,0 +1,150 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-01-17T01:42:42.869Z",
+    "createdAt": "2025-12-08T19:22:35.469Z",
+    "id": "ITcwJzOedm5PCsom",
+    "name": "Calendar_Create_MultiTenant",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "start"
+              },
+              {
+                "name": "end"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          -80,
+          0
+        ],
+        "id": "36700882-6fd3-4aec-afa7-389d1ccdcc11",
+        "name": "Start"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $json.access_token }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.eventBody) }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          336,
+          0
+        ],
+        "id": "bdcfe71b-5272-495c-854d-eba5fb9081a2",
+        "name": "Create Event",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const response = $input.first().json;\n\n// Check if the response indicates an error\nif (response.error) {\n  return [{\n    json: {\n      success: false,\n      error: response.error.message || response.error,\n      code: response.error.code\n    }\n  }];\n}\n\n// Check if we got a valid event back (has id)\nif (response.id) {\n  return [{\n    json: {\n      success: true,\n      event_id: response.id,\n      summary: response.summary,\n      start: response.start,\n      end: response.end,\n      htmlLink: response.htmlLink,\n      recurrence: response.recurrence || null\n    }\n  }];\n}\n\n// Unexpected response format\nreturn [{\n  json: {\n    success: false,\n    error: 'Unexpected response format',\n    raw_response: JSON.stringify(response).substring(0, 500)\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          448,
+          0
+        ],
+        "id": "4c2cbee6-8c83-479e-9c7c-9f5a79a50d6f",
+        "name": "Format Results",
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $input.first().json;\n\n// Parse start and end timestamps\nconst startStr = input.start || '';\nconst endStr = input.end || '';\n\n// Detect if this is an all-day event:\n// - Both start and end are at midnight (00:00:00)\n// - End date is exactly one day after start date\nlet isAllDay = false;\n\nif (startStr && endStr) {\n  try {\n    const startDate = new Date(startStr);\n    const endDate = new Date(endStr);\n    \n    // Extract time components\n    const startHours = startDate.getUTCHours();\n    const startMinutes = startDate.getUTCMinutes();\n    const startSeconds = startDate.getUTCSeconds();\n    const endHours = endDate.getUTCHours();\n    const endMinutes = endDate.getUTCMinutes();\n    const endSeconds = endDate.getUTCSeconds();\n    \n    // Check if both are at midnight (accounting for timezone offset)\n    // For Pacific Time (-08:00), midnight might be 08:00 UTC or 16:00 UTC depending on DST\n    // Instead, check if the time portion matches midnight in the original string\n    const startTimeMatch = startStr.match(/T([0-9]{2}):([0-9]{2}):([0-9]{2})/);\n    const endTimeMatch = endStr.match(/T([0-9]{2}):([0-9]{2}):([0-9]{2})/);\n    \n    if (startTimeMatch && endTimeMatch) {\n      const startHour = parseInt(startTimeMatch[1]);\n      const startMin = parseInt(startTimeMatch[2]);\n      const startSec = parseInt(startTimeMatch[3]);\n      const endHour = parseInt(endTimeMatch[1]);\n      const endMin = parseInt(endTimeMatch[2]);\n      const endSec = parseInt(endTimeMatch[3]);\n      \n      // Check if times are 00:00:00 (midnight)\n      const isStartMidnight = startHour === 0 && startMin === 0 && startSec === 0;\n      const isEndMidnight = endHour === 0 && endMin === 0 && endSec === 0;\n      \n      // Extract date portions (yyyy-mm-dd)\n      const startDateOnly = startStr.split('T')[0];\n      const endDateOnly = endStr.split('T')[0];\n      \n      // Parse dates\n      const startDateOnlyParsed = new Date(startDateOnly + 'T00:00:00');\n      const endDateOnlyParsed = new Date(endDateOnly + 'T00:00:00');\n      \n      // Check if end is exactly one day after start\n      const oneDayMs = 24 * 60 * 60 * 1000;\n      const daysDiff = (endDateOnlyParsed - startDateOnlyParsed) / oneDayMs;\n      \n      isAllDay = isStartMidnight && isEndMidnight && daysDiff === 1;\n    }\n  } catch (e) {\n    // If parsing fails, default to timed event\n    isAllDay = false;\n  }\n}\n\nconst event = {\n  summary: input.summary,\n  description: input.description || '',\n  location: input.location || ''\n};\n\nif (isAllDay) {\n  // All-day event: use date format (yyyy-mm-dd)\n  // end.date should be the day after start.date (exclusive)\n  const startDateOnly = startStr.split('T')[0];\n  const endDateOnly = endStr.split('T')[0];\n  \n  event.start = {\n    date: startDateOnly\n  };\n  event.end = {\n    date: endDateOnly\n  };\n} else {\n  // Timed event: use dateTime format with timezone\n  event.start = {\n    dateTime: input.start,\n    timeZone: 'America/Los_Angeles'\n  };\n  event.end = {\n    dateTime: input.end,\n    timeZone: 'America/Los_Angeles'\n  };\n}\n\n// Add recurrence rule if provided\nif (input.rrule && input.rrule.trim()) {\n  // Ensure RRULE prefix is not duplicated\n  const rule = input.rrule.startsWith('RRULE:') ? input.rrule : 'RRULE:' + input.rrule;\n  event.recurrence = [rule];\n}\n\nreturn [{\n  json: {\n    ...input,\n    eventBody: event,\n    _isAllDay: isAllDay\n  }\n}];"
+        },
+        "id": "build-event-body",
+        "name": "Build Event Body",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          112,
+          0
+        ]
+      }
+    ],
+    "connections": {
+      "Create Event": {
+        "main": [
+          [
+            {
+              "node": "Format Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Start": {
+        "main": [
+          [
+            {
+              "node": "Build Event Body",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Event Body": {
+        "main": [
+          [
+            {
+              "node": "Create Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "timeSavedMode": "fixed",
+      "errorWorkflow": "fyNaHTZY8javrwU5"
+    },
+    "staticData": null,
+    "meta": null,
+    "pinData": {},
+    "versionId": "0a0ddb1f-43eb-49bf-a721-28649caeaa97",
+    "activeVersionId": "0a0ddb1f-43eb-49bf-a721-28649caeaa97",
+    "versionCounter": 36,
+    "triggerCount": 0
+  }
+}

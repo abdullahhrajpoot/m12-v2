@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCookieOptions } from '@/lib/cookie-utils'
-import { ensureFamilyMembership } from '@/lib/family'
 
 /**
  * API endpoint to handle Unipile OAuth callback
@@ -306,24 +305,6 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('✅ Unipile account_id stored for user:', user.id, 'account:', accountId)
-
-    // Ensure user has family membership
-    try {
-      const { familyId, isNew } = await ensureFamilyMembership(
-        user.id,
-        accountEmail || user.email!,
-        accountId
-      )
-      
-      if (isNew) {
-        console.log('✅ Created new family for user:', user.id, 'family:', familyId)
-      } else {
-        console.log('✅ User already in family:', familyId)
-      }
-    } catch (familyError) {
-      console.error('❌ Error ensuring family membership:', familyError)
-      // Don't fail the flow - user can still use other parts of the app
-    }
 
     // Trigger n8n onboarding workflow
     const webhookUrl = process.env.N8N_UNIPILE_ONBOARDING_WEBHOOK_URL

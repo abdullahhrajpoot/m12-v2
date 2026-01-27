@@ -1,23 +1,32 @@
----
-name: Complete Unipile Migration Outsourcing
-overview: Create a detailed project description for outsourcing the complete migration from Supabase Auth + Google OAuth to Unipile API, including frontend auth changes, onboarding workflows, and calendar tool workflows.
-todos: []
----
-
 # Complete Unipile Migration - Outsourcing Project Description
 
 ## Project Overview
 
-Migrate a multi-tenant SaaS application from Supabase Auth + Google OAuth to Unipile API. This includes:
+Migrate a multi-user SaaS application from Supabase Auth + Google OAuth to Unipile API. This includes:
 - **Frontend**: Authentication and session management changes (4 pages)
 - **Workflows**: Onboarding and calendar tool workflows (7 n8n workflows)
 - **Backend**: OAuth flow integration and database updates
 
 **Important**: Frontend changes are **authentication/session related only** - no visual redesign or UI/UX changes. Preserve existing look and feel.
 
+## ⚠️ CRITICAL DISCLAIMER
+
+**This specification is an INITIAL APPROACH and should NOT be assumed to be correct.**
+
+You are **responsible** for:
+- Reading the complete Unipile API documentation thoroughly
+- Verifying all implementation details against Unipile's official docs
+- Adjusting your approach based on what Unipile actually supports
+- Contacting Unipile support for clarifications
+- Making technical decisions based on the latest Unipile capabilities
+
+**This document provides requirements and context, NOT a guaranteed implementation path.** 
+
+If Unipile's API works differently than described here, **follow Unipile's documentation**, not this spec. Document any deviations and explain why Unipile's approach is different/better.
+
 ## Background
 
-The application is a multi-tenant SaaS platform that processes emails and automates calendar event and task creation. The application uses:
+The application is a multi-user SaaS platform that processes emails and automates calendar event and task creation. The application uses:
 
 - **Next.js frontend** on Railway
 - **n8n Cloud workflows** for automation
@@ -45,22 +54,51 @@ flowchart LR
 
 ### Target Architecture (Unipile)
 
-```mermaid
-flowchart LR
-    User[User Signs Up] --> UnipileAuth[Unipile Hosted Auth]
-    UnipileAuth --> UnipileStore[oauth_tokens table<br/>unipile_account_id per user]
-    UnipileStore --> N8N[n8n Workflow]
-    N8N --> HTTPRequest[HTTP Request with<br/>X-API-KEY header]
-    HTTPRequest --> UnipileAPI[Unipile API]
-```
+**Complete User Flow (Sign-in Through Onboarding):**
 
-**Target Flow:**
+1. **User Initiates Sign-in**
+   - User clicks "Sign Up With Google" button on landing page
+   - Frontend redirects to auth initiation endpoint
 
-1. User authenticates via Unipile (OAuth handled by Unipile)
-2. Unipile returns `account_id` which is stored in `oauth_tokens` table per user
-3. n8n workflows fetch user's `account_id` from database
-4. Workflows make API calls to Unipile (refer to Unipile documentation for API details)
-5. No token refresh needed (Unipile manages OAuth internally)
+2. **Unipile OAuth Flow**
+   - Auth endpoint generates Unipile Hosted Auth link
+   - User redirected to Unipile OAuth consent screen
+   - User grants email read and full calendar permissions via Google
+   - Unipile handles OAuth exchange with Google
+
+3. **OAuth Callback & Account Creation**
+   - Unipile redirects back to `/api/auth/callback` with authorization code
+   - Callback handler exchanges code for `account_id` from Unipile
+   - Store `account_id` in `oauth_tokens` table linked to user
+   - Create user session
+
+4. **Post-Authentication Routing**
+   - If successful: Redirect to `/whatwefound` page
+   - If permissions missing/failed: Redirect to `/auth/missing-permissions` page
+
+5. **Onboarding Workflow Trigger**
+   - Callback handler triggers onboarding workflow webhook (n8n)
+   - Pass `user_id` and `account_id` to workflow
+   - Workflow runs asynchronously while user sees loading state
+
+6. **Onboarding Workflow Execution**
+   - Workflow fetches user's `account_id` from database
+   - Uses Unipile API to fetch recent emails
+   - Processes emails with AI to extract insights
+   - Stores results in database
+
+7. **Display Results**
+   - `/whatwefound` page queries database for onboarding results
+   - Displays processed data to user
+   - User can proceed to use the application
+
+**Workflow Integration Pattern (For Calendar Tools):**
+
+1. Calendar tool workflow receives `user_id` as input
+2. Query database for user's `account_id` (Unipile account identifier)
+3. Make API calls to Unipile using the `account_id`
+4. No token refresh logic needed (Unipile manages OAuth internally)
+
 
 ## Scope of Work
 
@@ -109,41 +147,42 @@ Migrate these 5 n8n subworkflow tools from Google Calendar API to Unipile API:
 1. **Calendar_Create_Multitenant** - Creates new calendar events
 
    - Current: Uses Google Calendar native node or HTTP Request to Google API
-   - Target: HTTP Request to `POST /accounts/{accountId}/events`
+   - Target: Unipile API (refer to Unipile documentation for endpoint)
    - Handles: Event title, start/end times, description, location, RRULE recurrence
+   - **Does NOT handle**: Event attendees (out of scope)
    - Test scenarios: Regular events, recurring events, all-day events
 
 2. **Calendar_Update_Multitenant** - Updates existing calendar events
 
    - Current: Uses Google Calendar API PATCH
-   - Target: HTTP Request to `PATCH /accounts/{accountId}/events/{id}`
+   - Target: Unipile API (refer to Unipile documentation for endpoint)
    - Handles: Modifying event fields (summary, times, description, location, recurrence)
    - Test scenarios: Update regular events, update recurring events, update all-day events
 
 3. **Calendar_Delete_Multitenant** - Deletes calendar events
 
    - Current: Uses Google Calendar API DELETE
-   - Target: HTTP Request to `DELETE /accounts/{accountId}/events/{id}`
+   - Target: Unipile API (refer to Unipile documentation for endpoint)
    - Handles: Removing events by ID
    - Test scenarios: Delete regular events, delete recurring events (single vs all), delete all-day events
 
 4. **Calendar_By_Date_Multitenant** - Gets events by date range
 
    - Current: Google Calendar API with date filters
-   - Target: HTTP Request to `GET /accounts/{accountId}/events?start_min={date}&start_max={date}`
+   - Target: Unipile API (refer to Unipile documentation for endpoint)
    - Handles: Date range queries
    - Test scenarios: Single day, date ranges, events spanning multiple days
 
 5. **Calendar_Search_Multitenant** - Searches calendar events
 
    - Current: Google Calendar API with complex queries
-   - Target: HTTP Request to `GET /accounts/{accountId}/events` with filters
+   - Target: Unipile API (refer to Unipile documentation for endpoint)
    - Handles: Keyword-style text search with date constraints
    - **Special requirements**:
      - Search must operate within **15 days back and 60 days out** from current date
      - **Return only the FIRST event** from results
      - **Include recurrence information** in the returned event
-   - May require custom logic design to enforce date range constraints
+   - May require custom logic design to enforce these constraints
    - Test scenarios: Keyword search, date range filtering, combined filters, events with recurrence
 
 ### Part 3: Backend Integration
@@ -171,7 +210,7 @@ Migrate these 5 n8n subworkflow tools from Google Calendar API to Unipile API:
 
 - Each workflow must support multiple users
 - User identification via `user_id` passed as input
-- Fetch correct Unipile token per user from Supabase
+- Fetch correct Unipile credentials per user from database
 
 #### 2. Account ID Retrieval Pattern
 
@@ -193,11 +232,14 @@ Each workflow must:
 #### 3. API Integration Pattern
 
 - Use HTTP Request nodes (not native nodes)
-- Base URL: `https://api.unipile.com/v1` (or your specific DSN from Unipile dashboard)
-- Authentication: `X-API-KEY` header with YOUR application's Unipile API Key (from environment variable)
-- Account specification: Include user's `account_id` in URL path (e.g., `/accounts/{account_id}/events`)
-- Handle Unipile API response format
-- Return data in format compatible with existing tool schema
+- Refer to Unipile API documentation for:
+  - API endpoints for calendar operations (create, update, delete, search, get by date)
+  - Authentication headers
+  - Request/response formats
+  - Error codes and handling
+- Use user's `account_id` retrieved from database to identify which calendar to access
+- Return data in format compatible with existing tool schema (see current workflow JSON files)
+
 
 4. Error Handling - Actionable Messages for AI Agent
 
@@ -290,7 +332,6 @@ All error messages must be **actionable** - tell the AI agent exactly what's wro
 **Implementation Pattern (n8n):**
 
 Use HTTP Request node with:
-
 - **Timeout**: 30000ms (30 seconds)
 - **Retry on Fail**: Enabled
 - **Max Retries**: 3
@@ -299,7 +340,6 @@ Use HTTP Request node with:
 **Timeout Error Messages:**
 
 During retry:
-
 ```json
 {
   "info": "Request timed out after 30 seconds. Retrying... (attempt 2 of 3)",
@@ -309,7 +349,6 @@ During retry:
 ```
 
 After all retries fail:
-
 ```json
 {
   "error": true,
@@ -344,7 +383,7 @@ You must create and execute a comprehensive test plan covering all permutations:
 - Create recurring event (daily, weekly, monthly patterns)
 - Create all-day event (birthdays, holidays)
 - Create event with all optional fields (description, location)
-- Create event with minimal fields (summary, start, end only)
+- Create event with minimal fields (title, start, end only)
 
 **Update Operation Tests:**
 
@@ -466,7 +505,7 @@ You must specify and implement how event IDs work:
 - Current workflow JSON files (contains all technical specifications)
 - Unipile API documentation
 
-### Access
+### Access & Testing Environment
 
 **You will provide (your own testing environment):**
 
@@ -477,9 +516,9 @@ You must specify and implement how event IDs work:
 
 **We will provide:**
 
-- Current workflow JSON files from our n8n Cloud (contains all specifications: input/output schemas, field types, database queries, tool descriptions)
-- Unipile API documentation
-- This project requirements document
+- Current workflow JSON files from our n8n Cloud
+- Current Next.js pages (frontend code)
+- Technical specifications and requirements
 
 **No access needed to:**
 
@@ -491,6 +530,7 @@ You must specify and implement how event IDs work:
 ### Reference Files
 
 - Current workflow JSON files (contains complete specifications)
+- Current Next.js page files (frontend code)
 - Unipile API documentation
 
 ### Test Data (You Create)
@@ -506,14 +546,17 @@ You must specify and implement how event IDs work:
 
 ## Out of Scope
 
-**You will NOT migrate:**
+**You will NOT migrate or implement:**
 
+- **Calendar event attendees** - Events do not need attendee management
 - Email command processing workflows (handled separately)
 - Task management workflows (handled separately)
 - Dashboard page (no changes needed)
 - Visual design or UI/UX (keep existing)
 - Database schema changes (table structure already exists)
 - Other unrelated features
+
+**Important**: If you discover other features in the current implementation that are not explicitly mentioned in the scope, they are likely out of scope. When in doubt, ask.
 
 ## Deliverables
 
@@ -565,6 +608,13 @@ You must specify and implement how event IDs work:
 - Request/response format differences
 - Authentication changes
 
+**Specification vs Reality Document:**
+
+- **REQUIRED**: Document any differences between this specification and Unipile's actual API
+- Explain why Unipile's approach differs from what was described here
+- Justify implementation decisions based on Unipile's documentation
+- Note any features described in this spec that Unipile doesn't support
+
 **Unique ID Specification:**
 
 - How event IDs are structured in Unipile
@@ -581,13 +631,16 @@ You must specify and implement how event IDs work:
 
 ### Functional Requirements
 
-- ✅ All 5 workflows execute successfully with Unipile API
+- ✅ Frontend pages work with Unipile auth (login, callback, whatwefound, missing-permissions)
+- ✅ OAuth flow successfully stores `account_id` and triggers onboarding
+- ✅ Onboarding workflows work with Unipile API
+- ✅ All 5 calendar workflows execute successfully with Unipile API
 - ✅ Multi-tenant support works (tested with 3+ users)
 - ✅ RRULE recurring events work correctly (create, update, delete)
 - ✅ Timezone handling correct (America/Los_Angeles)
 - ✅ All-day events work correctly (create, update, delete)
+- ✅ Search returns only first event with recurrence info
 - ✅ Search operates within 15 days back and 60 days out
-- ✅ Search returns only first event with recurrence information included
 - ✅ Event IDs work correctly across operations (create → update → delete)
 - ✅ Error messages are actionable (tell agent exactly what's wrong and how to fix it)
 - ✅ Error messages include format examples and expected values
@@ -598,9 +651,9 @@ You must specify and implement how event IDs work:
 ### Non-Functional Requirements
 
 - ✅ Response time <2 seconds per operation
-- ✅ Code follows n8n best practices
+- ✅ Code follows Next.js and n8n best practices
 - ✅ Workflows use HTTP Request nodes (not native nodes)
-- ✅ Token retrieval pattern consistent across all 4 workflows
+- ✅ Token retrieval pattern consistent across all workflows
 
 ### Testing Requirements
 
@@ -612,6 +665,7 @@ You must specify and implement how event IDs work:
 - ✅ Edge cases validated
 - ✅ No breaking changes to tool schema (inputs/outputs match current)
 - ✅ JSON files importable to n8n Cloud without errors
+- ✅ Frontend code deployable to Railway without errors
 
 ## Required Skills
 
@@ -642,8 +696,8 @@ You must specify and implement how event IDs work:
 
 - Project documentation (provided)
 - Unipile API docs (provided)
-- Test accounts and credentials
-- n8n workspace access
+- Test accounts and credentials (you create your own)
+- Current code and workflow files (provided)
 
 ### Communication
 
@@ -659,6 +713,16 @@ You must specify and implement how event IDs work:
 
 ## Unipile API Integration
 
+⚠️ **CRITICAL**: This specification provides a starting point, but **you must verify everything against Unipile's official documentation**. If Unipile's API differs from what's described here, **follow Unipile's documentation**.
+
+**Your responsibilities:**
+
+1. Read Unipile's complete API documentation before starting
+2. Verify all endpoints, authentication methods, and data formats
+3. Test with Unipile's API to understand actual behavior
+4. Document any differences between this spec and Unipile's actual API
+5. Make implementation decisions based on Unipile's capabilities, not assumptions in this spec
+
 **Refer to Unipile's official documentation for:**
 
 - API endpoints (base URL, authentication)
@@ -666,6 +730,7 @@ You must specify and implement how event IDs work:
 - Request/response formats
 - Error handling
 - Rate limits and best practices
+- OAuth flow implementation details
 
 **Contact Unipile directly for:**
 
@@ -673,6 +738,7 @@ You must specify and implement how event IDs work:
 - Authentication issues
 - API behavior clarifications
 - Latest features and updates
+- Best practices for calendar integration
 
 ### Special Requirements for Calendar_Search_Multitenant
 
@@ -787,3 +853,13 @@ If interested:
 2. Confirm you have the required skills
 3. Provide estimated timeline and fixed price
 4. Schedule kickoff call to review access and setup
+
+---
+
+**Project Type**: Fixed scope, comprehensive migration
+
+**Complexity**: Medium-High (frontend + workflows, OAuth implementation, multi-tenant)
+
+**Risk**: Medium (OAuth flow critical, end-to-end integration required)
+
+**Best For**: Experienced full-stack developer with OAuth and workflow automation experience

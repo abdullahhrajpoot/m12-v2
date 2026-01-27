@@ -1,404 +1,1134 @@
 {
-  "updatedAt": "2025-12-25T02:10:32.865Z",
-  "createdAt": "2025-12-21T06:23:44.115Z",
-  "id": "NScxKgKI3k1JDJai",
-  "name": "Onboarding Finalize",
-  "description": null,
-  "active": false,
-  "isArchived": false,
-  "nodes": [
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "onboarding-finalize",
-        "options": {
-          "responseData": "firstEntryJson"
+  "success": true,
+  "data": {
+    "updatedAt": "2026-01-15T20:23:20.170Z",
+    "createdAt": "2025-12-21T06:23:44.115Z",
+    "id": "NScxKgKI3k1JDJai",
+    "name": "Onboarding Finalize",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "onboarding-finalize",
+          "options": {
+            "responseData": "firstEntryJson"
+          }
+        },
+        "id": "webhook-finalize",
+        "name": "Onboarding Finalize Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -400,
+          304
+        ],
+        "webhookId": "f58d065b-2e09-4695-bb50-01ca19d539b7"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "version": 3,
+              "leftValue": "",
+              "caseSensitive": true,
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "check-user-edits",
+                "leftValue": "={{ $json.body.userEdits }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "exists"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "check-edits",
+        "name": "Has User Edits?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -208,
+          304
+        ],
+        "alwaysOutputData": false
+      },
+      {
+        "parameters": {
+          "jsCode": "// Prepare facts and edits for AI refinement\n// This node only runs when userEdits exists (TRUE branch of If node)\nconst items = $input.all();\nconst result = [];\n\nfor (const item of items) {\n  // Handle empty input gracefully - skip if body doesn't exist\n  if (!item.json || !item.json.body || !item.json.body.userId) {\n    continue;\n  }\n  \n  const facts = item.json.body.facts || [];\n  const userEdits = item.json.body.userEdits || '';\n  const userId = item.json.body.userId;\n  \n  result.push({\n    json: {\n      userId: userId,\n      facts: facts,\n      userEdits: userEdits,\n      factsText: facts.join('\\n'),\n      prompt: `You are refining a list of facts about a family based on user feedback.\n\nORIGINAL FACTS:\n${facts.map((f, i) => `${i + 1}. ${f}`).join('\\n')}\n\nUSER FEEDBACK:\n\"${userEdits}\"\n\nINSTRUCTIONS:\n1. REMOVE any facts the user says are wrong or about people who are NOT their family members\n2. CORRECT any facts the user says need fixing\n3. ADD any new facts the user provides\n4. KEEP facts that weren't mentioned (assume they're correct)\n\nIMPORTANT: If the user says someone is NOT their kid/child/family member, you MUST remove ALL facts mentioning that person's name.\n\nReturn ONLY a JSON array of the refined facts. Do not include facts about people the user said are not their family.\n\nExample output format:\n[\"Fact 1\", \"Fact 2\", \"Fact 3\"]`\n    }\n  });\n}\n\nreturn result;"
+        },
+        "id": "prepare-refinement",
+        "name": "Prepare for Refinement",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          208
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.prompt }}",
+          "options": {
+            "systemMessage": "You are a fact refinement agent. Your job is to refine a list of facts based on user feedback. Always return a valid JSON array of strings, even if empty."
+          }
+        },
+        "id": "refine-agent",
+        "name": "Refine Facts Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3,
+        "position": [
+          208,
+          208
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "model": {
+            "mode": "list",
+            "value": "gpt-4o"
+          },
+          "builtInTools": {},
+          "options": {
+            "maxTokens": 2000,
+            "temperature": 0.3
+          }
+        },
+        "id": "gpt4o-refine",
+        "name": "GPT-4o Refine",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.3,
+        "position": [
+          208,
+          400
+        ],
+        "credentials": {
+          "openAiApi": {
+            "id": "D1MyVMAJ9zLNahg3",
+            "name": "OpenAi account"
+          }
         }
       },
-      "id": "webhook-finalize",
-      "name": "Onboarding Finalize Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        -400,
-        304
-      ],
-      "webhookId": "f58d065b-2e09-4695-bb50-01ca19d539b7"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
+      {
+        "parameters": {
+          "jsCode": "// Parse AI output into facts array and preserve userId\n// ALWAYS output at least one item with userId, even if facts are empty\nconst items = $input.all();\nconst result = [];\n\n// Get userId from webhook (fallback if not in input)\nlet webhookUserId = null;\ntry {\n  const webhookData = $('Onboarding Finalize Webhook').first().json;\n  if (webhookData && webhookData.body && webhookData.body.userId) {\n    webhookUserId = webhookData.body.userId;\n  }\n} catch (e) {\n  // If webhook data not accessible, continue without it\n}\n\nfor (const item of items) {\n  // Try to get userId from current item first, then fallback to webhook\n  const userId = item.json.userId || webhookUserId;\n  \n  if (!userId) {\n    // Skip items without userId - this should not happen\n    console.error('No userId found for item');\n    continue;\n  }\n  \n  let outputText = '';\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else if (typeof item.json === 'string') {\n    outputText = item.json;\n  }\n  \n  // Try to extract JSON array from output\n  let facts = [];\n  if (outputText) {\n    try {\n      const jsonMatch = outputText.match(/\\[[\\s\\S]*\\]/);\n      if (jsonMatch) {\n        facts = JSON.parse(jsonMatch[0]);\n        // Validate it's an array\n        if (!Array.isArray(facts)) {\n          facts = [];\n        }\n      } else {\n        // Fallback: split by newlines if not JSON\n        facts = outputText.split('\\n').filter(f => f.trim().length > 0);\n      }\n    } catch (e) {\n      // If parsing fails, use empty array\n      facts = [];\n    }\n  }\n  \n  // ALWAYS push at least one item with userId, even if facts is empty\n  result.push({\n    json: {\n      userId: userId,\n      facts: facts\n    }\n  });\n}\n\n// If result is empty, create a fallback item with userId from webhook\nif (result.length === 0 && webhookUserId) {\n  result.push({\n    json: {\n      userId: webhookUserId,\n      facts: []\n    }\n  });\n}\n\nreturn result.length > 0 ? result : items;"
+        },
+        "id": "parse-refined",
+        "name": "Parse Refined Facts",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          208
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "// Use facts directly (no refinement)\nconst items = $input.all();\nconst result = [];\n\nfor (const item of items) {\n  result.push({\n    json: {\n      userId: item.json.body.userId,\n      facts: item.json.body.facts || []\n    }\n  });\n}\n\nreturn result;"
+        },
+        "id": "prepare-direct",
+        "name": "Prepare Direct Save",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          400
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "// Split facts array into individual items for database insert\n// Always ensure at least one item flows through for workflow continuity\nconst items = $input.all();\nconst factRows = [];\nlet preservedUserId = null;\n\nfor (const item of items) {\n  const userId = item.json.userId;\n  if (userId) preservedUserId = userId;\n  \n  const facts = item.json.facts || [];\n  \n  // Create database rows for each fact\n  for (const fact of facts) {\n    let factType = 'general';\n    const factLower = String(fact).toLowerCase();\n    if (factLower.includes('attends') || factLower.includes('goes to')) {\n      factType = factLower.includes('school') ? 'school' : 'activity';\n    } else if (factLower.includes('grade') || factLower.includes('is in')) {\n      factType = 'child';\n    }\n    \n    factRows.push({\n      json: {\n        user_id: userId,\n        fact_type: factType,\n        fact_text: fact,\n        source: 'onboarding_scan',\n        confidence: 1.0,\n        is_confirmed: true\n      }\n    });\n  }\n}\n\n// If we have facts, return them\nif (factRows.length > 0) {\n  return factRows;\n}\n\n// If no facts, output a placeholder item with userId\n// Save node will skip this (continueOnFail handles missing required fields)\n// But this ensures Get User Email still executes\nif (preservedUserId) {\n  return [{\n    json: {\n      user_id: preservedUserId\n      // Missing required fields - Save will fail gracefully with continueOnFail\n      // but item still flows through for Get User Email\n    }\n  }];\n}\n\nreturn [];"
+        },
+        "id": "split-facts",
+        "name": "Split Facts for Insert",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          608,
+          304
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "tableId": "family_facts",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "user_id",
+                "fieldValue": "={{ $json.user_id }}"
+              },
+              {
+                "fieldId": "fact_type",
+                "fieldValue": "={{ $json.fact_type }}"
+              },
+              {
+                "fieldId": "fact_text",
+                "fieldValue": "={{ $json.fact_text }}"
+              },
+              {
+                "fieldId": "source",
+                "fieldValue": "={{ $json.source }}"
+              },
+              {
+                "fieldId": "confidence",
+                "fieldValue": "={{ $json.confidence }}"
+              },
+              {
+                "fieldId": "is_confirmed",
+                "fieldValue": "={{ $json.is_confirmed }}"
+              }
+            ]
+          }
+        },
+        "id": "save-facts",
+        "name": "Save to family_facts",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          800,
+          304
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "users",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "id",
+                "condition": "eq",
+                "keyValue": "={{ $('Onboarding Finalize Webhook').first().json.body.userId }}"
+              }
+            ]
+          }
+        },
+        "id": "get-user-email",
+        "name": "Get User Email",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          1008,
+          304
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sendTo": "={{ $('Build Email HTML').first().json.email }}",
+          "subject": "Welcome to Bippity.boo! Email me any time.",
+          "message": "={{ $('Build Email HTML').first().json.emailHtml }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.gmail",
+        "typeVersion": 2.2,
+        "position": [
+          1232,
+          304
+        ],
+        "id": "6a99ae8c-2cd0-44c9-b7ce-a31d58e16691",
+        "name": "Send a message",
+        "webhookId": "2f875364-a6e8-4212-a076-59c65666549e",
+        "alwaysOutputData": true,
+        "credentials": {
+          "gmailOAuth2": {
+            "id": "Ldd5JDZnnNLDR97d",
+            "name": "FGM"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "onboarding_summaries",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "user_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Onboarding Finalize Webhook').first().json.body.userId }}"
+              }
+            ]
           },
-          "combinator": "and",
-          "conditions": [
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "status",
+                "fieldValue": "completed"
+              }
+            ]
+          }
+        },
+        "id": "dacf89af-d8cf-4ad6-8309-8de8a842f5a7",
+        "name": "Update Onboarding Status",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          800,
+          480
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Aggregate items into single email data and format facts\n// Get REFINED facts from the refinement pipeline, not the original webhook facts\nconst items = $input.all();\n\n// Get userId from webhook\nlet userId = null;\ntry {\n  const webhookData = $('Onboarding Finalize Webhook').first().json;\n  if (webhookData && webhookData.body) {\n    userId = webhookData.body.userId;\n  }\n} catch (e) {\n  if (items.length > 0 && items[0].json) {\n    userId = items[0].json.user_id || items[0].json.id;\n  }\n}\n\n// Get REFINED facts - try Parse Refined Facts first (AI refinement path), \n// then Prepare Direct Save (no edits path)\nlet facts = [];\ntry {\n  const refinedData = $('Parse Refined Facts').first();\n  if (refinedData && refinedData.json && refinedData.json.facts && refinedData.json.facts.length > 0) {\n    facts = refinedData.json.facts;\n  }\n} catch (e) {\n  // Parse Refined Facts not in execution path, try direct save path\n}\n\n// If no refined facts, try direct save path\nif (facts.length === 0) {\n  try {\n    const directData = $('Prepare Direct Save').first();\n    if (directData && directData.json && directData.json.facts && directData.json.facts.length > 0) {\n      facts = directData.json.facts;\n    }\n  } catch (e) {\n    // Prepare Direct Save not in execution path either\n  }\n}\n\n// Last resort fallback to webhook (should rarely happen)\nif (facts.length === 0) {\n  try {\n    const webhookData = $('Onboarding Finalize Webhook').first().json;\n    if (webhookData && webhookData.body && webhookData.body.facts) {\n      facts = webhookData.body.facts;\n    }\n  } catch (e) {}\n}\n\n// Format facts as HTML list\nlet factsHtml = '<p style=\"margin: 0; color: #64748b; font-style: italic;\">Your facts have been saved successfully.</p>';\nif (facts && facts.length > 0) {\n  factsHtml = '<ul style=\"margin: 0; padding-left: 20px; color: #475569; line-height: 1.8;\">';\n  for (const fact of facts) {\n    factsHtml += `<li style=\"margin-bottom: 8px;\">${String(fact).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</li>`;\n  }\n  factsHtml += '</ul>';\n}\n\n// Return single item with userId, facts array, and formatted facts HTML\nreturn [{\n  json: {\n    userId: userId,\n    facts: facts,\n    factsHtml: factsHtml\n  }\n}];"
+        },
+        "id": "b45af5b0-fb34-45ed-a615-5cb6892d8389",
+        "name": "Prepare Email Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1008,
+          480
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "// Build full email HTML with facts\n// Get facts from Prepare Email Data (which already got the refined facts)\nconst items = $input.all();\nconst result = [];\n\n// Get factsHtml from Prepare Email Data node (already has refined facts)\nlet factsHtml = '<p style=\"margin: 0; color: #64748b; font-style: italic;\">Your facts have been saved successfully.</p>';\ntry {\n  const prepareEmailData = $('Prepare Email Data').first();\n  if (prepareEmailData && prepareEmailData.json && prepareEmailData.json.factsHtml) {\n    factsHtml = prepareEmailData.json.factsHtml;\n  }\n} catch (e) {\n  console.error('Could not access Prepare Email Data:', e);\n}\n\nfor (const item of items) {\n  const email = item.json.email;\n  if (!email) continue;\n  \n  // Build full email HTML\n  const emailHtml = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #1e293b; line-height: 1.6;\"><table style=\"max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\"><tr><td style=\"padding: 40px;\"><div style=\"text-align: center; margin-bottom: 32px;\"><div style=\"display: inline-block; background-color: #4f46e5; padding: 12px; border-radius: 8px; margin-bottom: 16px;\"><span style=\"color: #ffffff; font-size: 24px;\">✨</span></div><h1 style=\"margin: 0 0 8px 0; font-size: 28px; font-weight: 700; color: #1e293b;\">Welcome to bippity.boo!</h1></div><p style=\"margin: 0 0 24px 0; font-size: 16px; color: #475569;\">Your family facts have been saved. I'll create and update relevant calendar events and tasks in your Google Calendar and Google Tasks. I'll judge relevance based on the facts in the Family Facts section below.</p><p style=\"margin: 0 0 24px 0; font-size: 16px; color: #475569;\">In the meantime, feel free to forward me anything important with or without instructions. Also feel free to email me to update facts about your family.</p><div style=\"margin: 32px 0; padding: 24px; background-color: #f1f5f9; border-left: 4px solid #4f46e5; border-radius: 4px;\"><h2 style=\"margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;\">Family Facts:</h2>${factsHtml}</div><div style=\"margin-top: 32px; text-align: center;\"><p style=\"margin: 0 0 4px 0; font-size: 14px; color: #64748b;\">Your Fairy God Mother,</p><p style=\"margin: 0; font-size: 14px; color: #4f46e5;\"><a href=\"mailto:fgm@bippity.boo\" style=\"color: #4f46e5; text-decoration: none;\">fgm@bippity.boo</a></p></div></td></tr></table></body></html>`;\n  \n  result.push({\n    json: {\n      email: email,\n      emailHtml: emailHtml\n    }\n  });\n}\n\n// Only return first item to ensure single email\nreturn result.length > 0 ? [result[0]] : result;"
+        },
+        "id": "fa46a6f4-d979-4f29-b8b9-403a65d7a395",
+        "name": "Build Email HTML",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1232,
+          480
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "operation": "delete",
+          "tableId": "onboarding_summaries",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "user_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Onboarding Finalize Webhook').first().json.body.userId }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          1440,
+          304
+        ],
+        "id": "8ef218e1-dd2d-4d29-a2f8-9241e8e3bbbb",
+        "name": "Clear Onboarding Summary",
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Onboarding Finalize Webhook": {
+        "main": [
+          [
             {
-              "id": "check-user-edits",
-              "leftValue": "={{ $json.body.userEdits }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "exists"
+              "node": "Has User Edits?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has User Edits?": {
+        "main": [
+          [
+            {
+              "node": "Prepare for Refinement",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Prepare Direct Save",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare for Refinement": {
+        "main": [
+          [
+            {
+              "node": "Refine Facts Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Refine Facts Agent": {
+        "main": [
+          [
+            {
+              "node": "Parse Refined Facts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "GPT-4o Refine": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Refine Facts Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Refined Facts": {
+        "main": [
+          [
+            {
+              "node": "Split Facts for Insert",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Direct Save": {
+        "main": [
+          [
+            {
+              "node": "Split Facts for Insert",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Split Facts for Insert": {
+        "main": [
+          [
+            {
+              "node": "Save to family_facts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Save to family_facts": {
+        "main": [
+          [
+            {
+              "node": "Update Onboarding Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Onboarding Status": {
+        "main": [
+          [
+            {
+              "node": "Prepare Email Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Email Data": {
+        "main": [
+          [
+            {
+              "node": "Get User Email",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get User Email": {
+        "main": [
+          [
+            {
+              "node": "Build Email HTML",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Email HTML": {
+        "main": [
+          [
+            {
+              "node": "Send a message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send a message": {
+        "main": [
+          [
+            {
+              "node": "Clear Onboarding Summary",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "saveDataErrorExecution": "all",
+      "saveDataSuccessExecution": "all",
+      "saveManualExecutions": true,
+      "saveExecutionProgress": true,
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "timeSavedMode": "fixed",
+      "errorWorkflow": "fyNaHTZY8javrwU5"
+    },
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "pinData": {},
+    "versionId": "5e789a9e-6fee-43e5-9dfd-397ad0bfc1df",
+    "activeVersionId": "5e789a9e-6fee-43e5-9dfd-397ad0bfc1df",
+    "versionCounter": 80,
+    "triggerCount": 1,
+    "shared": [
+      {
+        "updatedAt": "2025-12-23T23:53:21.048Z",
+        "createdAt": "2025-12-23T23:53:21.048Z",
+        "role": "workflow:owner",
+        "workflowId": "NScxKgKI3k1JDJai",
+        "projectId": "kvPchBqTqBoD9S7f",
+        "project": {
+          "updatedAt": "2025-08-14T19:31:26.000Z",
+          "createdAt": "2025-07-30T17:31:40.740Z",
+          "id": "kvPchBqTqBoD9S7f",
+          "name": "ChungFamilyParents inbound message parser",
+          "type": "team",
+          "icon": {
+            "type": "icon",
+            "value": "layers"
+          },
+          "description": "Helps family make sure that they don't drop the ball on todos or events for the kids when sent in via some message.",
+          "creatorId": null,
+          "projectRelations": [
+            {
+              "updatedAt": "2025-08-14T19:31:26.958Z",
+              "createdAt": "2025-08-14T19:31:26.958Z",
+              "userId": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a",
+              "projectId": "kvPchBqTqBoD9S7f",
+              "user": {
+                "updatedAt": "2026-01-26T08:08:03.000Z",
+                "createdAt": "2025-07-29T23:07:39.928Z",
+                "id": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a",
+                "email": "hanschung@gmail.com",
+                "firstName": "Hans",
+                "lastName": "Chung",
+                "personalizationAnswers": null,
+                "settings": {
+                  "userActivated": false,
+                  "easyAIWorkflowOnboarded": true
+                },
+                "disabled": false,
+                "mfaEnabled": false,
+                "lastActiveAt": "2026-01-26",
+                "isPending": false
               }
             }
           ]
-        },
-        "options": {}
-      },
-      "id": "check-edits",
-      "name": "Has User Edits?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -208,
-        304
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Prepare facts and edits for AI refinement\nconst items = $input.all();\nconst result = [];\n\nfor (const item of items) {\n  const facts = item.json.body.facts || [];\n  const userEdits = item.json.body.userEdits || '';\n  const userId = item.json.body.userId;\n  \n  result.push({\n    json: {\n      userId: userId,\n      facts: facts,\n      userEdits: userEdits,\n      factsText: facts.join('\\n'),\n      prompt: `The user has reviewed the following facts we extracted:\n${facts.join('\\n')}\n\nThey provided these edits/additions:\n${userEdits}\n\nPlease refine the facts list by:\n1. Incorporating their edits and additions\n2. Removing or correcting any facts they mentioned are wrong\n3. Adding any new facts they provided\n4. Keeping all facts that weren't mentioned\n\nReturn a JSON array of refined facts:\n[\"refined fact 1\", \"refined fact 2\", ...]`\n    }\n  });\n}\n\nreturn result;"
-      },
-      "id": "prepare-refinement",
-      "name": "Prepare for Refinement",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        0,
-        208
-      ]
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.prompt }}",
-        "options": {
-          "systemMessage": "You are a fact refinement agent. Your job is to refine a list of facts based on user feedback. Always return a valid JSON array of strings, even if empty."
-        }
-      },
-      "id": "refine-agent",
-      "name": "Refine Facts Agent",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3,
-      "position": [
-        208,
-        208
-      ]
-    },
-    {
-      "parameters": {
-        "model": {
-          "mode": "list",
-          "value": "gpt-4o"
-        },
-        "builtInTools": {},
-        "options": {
-          "maxTokens": 2000,
-          "temperature": 0.3
-        }
-      },
-      "id": "gpt4o-refine",
-      "name": "GPT-4o Refine",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        208,
-        400
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "D1MyVMAJ9zLNahg3",
-          "name": "OpenAi account"
         }
       }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Parse AI output into facts array and preserve userId\nconst items = $input.all();\nconst result = [];\n\n// Get userId from webhook (fallback if not in input)\nlet webhookUserId = null;\ntry {\n  const webhookData = $node['Onboarding Finalize Webhook'].json;\n  if (webhookData && webhookData.body && webhookData.body.userId) {\n    webhookUserId = webhookData.body.userId;\n  }\n} catch (e) {\n  // If webhook data not accessible, continue without it\n}\n\nfor (const item of items) {\n  // Try to get userId from current item first, then fallback to webhook\n  const userId = item.json.userId || webhookUserId;\n  \n  if (!userId) {\n    // Skip items without userId - this should not happen\n    console.error('No userId found for item');\n    continue;\n  }\n  \n  let outputText = '';\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else if (typeof item.json === 'string') {\n    outputText = item.json;\n  } else {\n    continue;\n  }\n  \n  // Try to extract JSON array from output\n  let facts = [];\n  try {\n    const jsonMatch = outputText.match(/\\[[\\s\\S]*\\]/);\n    if (jsonMatch) {\n      facts = JSON.parse(jsonMatch[0]);\n      // Validate it's an array\n      if (!Array.isArray(facts)) {\n        facts = [];\n      }\n    } else {\n      // Fallback: split by newlines if not JSON\n      facts = outputText.split('\\n').filter(f => f.trim().length > 0);\n    }\n  } catch (e) {\n    // If parsing fails, use empty array\n    facts = [];\n  }\n  \n  result.push({\n    json: {\n      userId: userId,\n      facts: facts\n    }\n  });\n}\n\nreturn result.length > 0 ? result : items;"
-      },
-      "id": "parse-refined",
-      "name": "Parse Refined Facts",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        480,
-        208
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Use facts directly (no refinement)\nconst items = $input.all();\nconst result = [];\n\nfor (const item of items) {\n  result.push({\n    json: {\n      userId: item.json.body.userId,\n      facts: item.json.body.facts || []\n    }\n  });\n}\n\nreturn result;"
-      },
-      "id": "prepare-direct",
-      "name": "Prepare Direct Save",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        0,
-        400
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Split facts array into individual items for database insert\nconst items = $input.all();\nconst result = [];\n\nfor (const item of items) {\n  const userId = item.json.userId;\n  const facts = item.json.facts || [];\n  \n  for (const fact of facts) {\n    // Determine fact_type from fact text\n    let factType = 'general';\n    const factLower = String(fact).toLowerCase();\n    if (factLower.includes('attends') || factLower.includes('goes to')) {\n      factType = factLower.includes('school') ? 'school' : 'activity';\n    } else if (factLower.includes('grade') || factLower.includes('is in')) {\n      factType = 'child';\n    }\n    \n    result.push({\n      json: {\n        user_id: userId,\n        fact_type: factType,\n        fact_text: fact,\n        source: 'onboarding_scan',\n        confidence: 1.0,\n        is_confirmed: true\n      }\n    });\n  }\n}\n\nreturn result;"
-      },
-      "id": "split-facts",
-      "name": "Split Facts for Insert",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        608,
-        304
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "create",
-        "tableId": "family_facts",
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "user_id",
-              "fieldValue": "={{ $json.user_id }}"
-            },
-            {
-              "fieldId": "fact_type",
-              "fieldValue": "={{ $json.fact_type }}"
-            },
-            {
-              "fieldId": "fact_text",
-              "fieldValue": "={{ $json.fact_text }}"
-            },
-            {
-              "fieldId": "source",
-              "fieldValue": "={{ $json.source }}"
-            },
-            {
-              "fieldId": "confidence",
-              "fieldValue": "={{ $json.confidence }}"
-            },
-            {
-              "fieldId": "is_confirmed",
-              "fieldValue": "={{ $json.is_confirmed }}"
+    ],
+    "tags": [],
+    "activeVersion": {
+      "updatedAt": "2026-01-15T20:23:28.000Z",
+      "createdAt": "2026-01-15T20:23:20.172Z",
+      "versionId": "5e789a9e-6fee-43e5-9dfd-397ad0bfc1df",
+      "workflowId": "NScxKgKI3k1JDJai",
+      "nodes": [
+        {
+          "parameters": {
+            "httpMethod": "POST",
+            "path": "onboarding-finalize",
+            "options": {
+              "responseData": "firstEntryJson"
             }
+          },
+          "id": "webhook-finalize",
+          "name": "Onboarding Finalize Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 2.1,
+          "position": [
+            -400,
+            304
+          ],
+          "webhookId": "f58d065b-2e09-4695-bb50-01ca19d539b7"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "version": 3,
+                "leftValue": "",
+                "caseSensitive": true,
+                "typeValidation": "strict"
+              },
+              "conditions": [
+                {
+                  "id": "check-user-edits",
+                  "leftValue": "={{ $json.body.userEdits }}",
+                  "rightValue": "",
+                  "operator": {
+                    "type": "string",
+                    "operation": "exists"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "check-edits",
+          "name": "Has User Edits?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2.3,
+          "position": [
+            -208,
+            304
+          ],
+          "alwaysOutputData": false
+        },
+        {
+          "parameters": {
+            "jsCode": "// Prepare facts and edits for AI refinement\n// This node only runs when userEdits exists (TRUE branch of If node)\nconst items = $input.all();\nconst result = [];\n\nfor (const item of items) {\n  // Handle empty input gracefully - skip if body doesn't exist\n  if (!item.json || !item.json.body || !item.json.body.userId) {\n    continue;\n  }\n  \n  const facts = item.json.body.facts || [];\n  const userEdits = item.json.body.userEdits || '';\n  const userId = item.json.body.userId;\n  \n  result.push({\n    json: {\n      userId: userId,\n      facts: facts,\n      userEdits: userEdits,\n      factsText: facts.join('\\n'),\n      prompt: `You are refining a list of facts about a family based on user feedback.\n\nORIGINAL FACTS:\n${facts.map((f, i) => `${i + 1}. ${f}`).join('\\n')}\n\nUSER FEEDBACK:\n\"${userEdits}\"\n\nINSTRUCTIONS:\n1. REMOVE any facts the user says are wrong or about people who are NOT their family members\n2. CORRECT any facts the user says need fixing\n3. ADD any new facts the user provides\n4. KEEP facts that weren't mentioned (assume they're correct)\n\nIMPORTANT: If the user says someone is NOT their kid/child/family member, you MUST remove ALL facts mentioning that person's name.\n\nReturn ONLY a JSON array of the refined facts. Do not include facts about people the user said are not their family.\n\nExample output format:\n[\"Fact 1\", \"Fact 2\", \"Fact 3\"]`\n    }\n  });\n}\n\nreturn result;"
+          },
+          "id": "prepare-refinement",
+          "name": "Prepare for Refinement",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            0,
+            208
+          ],
+          "alwaysOutputData": true
+        },
+        {
+          "parameters": {
+            "promptType": "define",
+            "text": "={{ $json.prompt }}",
+            "options": {
+              "systemMessage": "You are a fact refinement agent. Your job is to refine a list of facts based on user feedback. Always return a valid JSON array of strings, even if empty."
+            }
+          },
+          "id": "refine-agent",
+          "name": "Refine Facts Agent",
+          "type": "@n8n/n8n-nodes-langchain.agent",
+          "typeVersion": 3,
+          "position": [
+            208,
+            208
+          ],
+          "alwaysOutputData": true
+        },
+        {
+          "parameters": {
+            "model": {
+              "mode": "list",
+              "value": "gpt-4o"
+            },
+            "builtInTools": {},
+            "options": {
+              "maxTokens": 2000,
+              "temperature": 0.3
+            }
+          },
+          "id": "gpt4o-refine",
+          "name": "GPT-4o Refine",
+          "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+          "typeVersion": 1.3,
+          "position": [
+            208,
+            400
+          ],
+          "credentials": {
+            "openAiApi": {
+              "id": "D1MyVMAJ9zLNahg3",
+              "name": "OpenAi account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "jsCode": "// Parse AI output into facts array and preserve userId\n// ALWAYS output at least one item with userId, even if facts are empty\nconst items = $input.all();\nconst result = [];\n\n// Get userId from webhook (fallback if not in input)\nlet webhookUserId = null;\ntry {\n  const webhookData = $('Onboarding Finalize Webhook').first().json;\n  if (webhookData && webhookData.body && webhookData.body.userId) {\n    webhookUserId = webhookData.body.userId;\n  }\n} catch (e) {\n  // If webhook data not accessible, continue without it\n}\n\nfor (const item of items) {\n  // Try to get userId from current item first, then fallback to webhook\n  const userId = item.json.userId || webhookUserId;\n  \n  if (!userId) {\n    // Skip items without userId - this should not happen\n    console.error('No userId found for item');\n    continue;\n  }\n  \n  let outputText = '';\n  if (item.json && item.json.output) {\n    outputText = item.json.output;\n  } else if (item.json && item.json.text) {\n    outputText = item.json.text;\n  } else if (typeof item.json === 'string') {\n    outputText = item.json;\n  }\n  \n  // Try to extract JSON array from output\n  let facts = [];\n  if (outputText) {\n    try {\n      const jsonMatch = outputText.match(/\\[[\\s\\S]*\\]/);\n      if (jsonMatch) {\n        facts = JSON.parse(jsonMatch[0]);\n        // Validate it's an array\n        if (!Array.isArray(facts)) {\n          facts = [];\n        }\n      } else {\n        // Fallback: split by newlines if not JSON\n        facts = outputText.split('\\n').filter(f => f.trim().length > 0);\n      }\n    } catch (e) {\n      // If parsing fails, use empty array\n      facts = [];\n    }\n  }\n  \n  // ALWAYS push at least one item with userId, even if facts is empty\n  result.push({\n    json: {\n      userId: userId,\n      facts: facts\n    }\n  });\n}\n\n// If result is empty, create a fallback item with userId from webhook\nif (result.length === 0 && webhookUserId) {\n  result.push({\n    json: {\n      userId: webhookUserId,\n      facts: []\n    }\n  });\n}\n\nreturn result.length > 0 ? result : items;"
+          },
+          "id": "parse-refined",
+          "name": "Parse Refined Facts",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            480,
+            208
+          ],
+          "alwaysOutputData": true
+        },
+        {
+          "parameters": {
+            "jsCode": "// Use facts directly (no refinement)\nconst items = $input.all();\nconst result = [];\n\nfor (const item of items) {\n  result.push({\n    json: {\n      userId: item.json.body.userId,\n      facts: item.json.body.facts || []\n    }\n  });\n}\n\nreturn result;"
+          },
+          "id": "prepare-direct",
+          "name": "Prepare Direct Save",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            0,
+            400
+          ],
+          "alwaysOutputData": true
+        },
+        {
+          "parameters": {
+            "jsCode": "// Split facts array into individual items for database insert\n// Always ensure at least one item flows through for workflow continuity\nconst items = $input.all();\nconst factRows = [];\nlet preservedUserId = null;\n\nfor (const item of items) {\n  const userId = item.json.userId;\n  if (userId) preservedUserId = userId;\n  \n  const facts = item.json.facts || [];\n  \n  // Create database rows for each fact\n  for (const fact of facts) {\n    let factType = 'general';\n    const factLower = String(fact).toLowerCase();\n    if (factLower.includes('attends') || factLower.includes('goes to')) {\n      factType = factLower.includes('school') ? 'school' : 'activity';\n    } else if (factLower.includes('grade') || factLower.includes('is in')) {\n      factType = 'child';\n    }\n    \n    factRows.push({\n      json: {\n        user_id: userId,\n        fact_type: factType,\n        fact_text: fact,\n        source: 'onboarding_scan',\n        confidence: 1.0,\n        is_confirmed: true\n      }\n    });\n  }\n}\n\n// If we have facts, return them\nif (factRows.length > 0) {\n  return factRows;\n}\n\n// If no facts, output a placeholder item with userId\n// Save node will skip this (continueOnFail handles missing required fields)\n// But this ensures Get User Email still executes\nif (preservedUserId) {\n  return [{\n    json: {\n      user_id: preservedUserId\n      // Missing required fields - Save will fail gracefully with continueOnFail\n      // but item still flows through for Get User Email\n    }\n  }];\n}\n\nreturn [];"
+          },
+          "id": "split-facts",
+          "name": "Split Facts for Insert",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            608,
+            304
+          ],
+          "alwaysOutputData": true
+        },
+        {
+          "parameters": {
+            "tableId": "family_facts",
+            "fieldsUi": {
+              "fieldValues": [
+                {
+                  "fieldId": "user_id",
+                  "fieldValue": "={{ $json.user_id }}"
+                },
+                {
+                  "fieldId": "fact_type",
+                  "fieldValue": "={{ $json.fact_type }}"
+                },
+                {
+                  "fieldId": "fact_text",
+                  "fieldValue": "={{ $json.fact_text }}"
+                },
+                {
+                  "fieldId": "source",
+                  "fieldValue": "={{ $json.source }}"
+                },
+                {
+                  "fieldId": "confidence",
+                  "fieldValue": "={{ $json.confidence }}"
+                },
+                {
+                  "fieldId": "is_confirmed",
+                  "fieldValue": "={{ $json.is_confirmed }}"
+                }
+              ]
+            }
+          },
+          "id": "save-facts",
+          "name": "Save to family_facts",
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            800,
+            304
+          ],
+          "alwaysOutputData": true,
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          },
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "operation": "getAll",
+            "tableId": "users",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "id",
+                  "condition": "eq",
+                  "keyValue": "={{ $('Onboarding Finalize Webhook').first().json.body.userId }}"
+                }
+              ]
+            }
+          },
+          "id": "get-user-email",
+          "name": "Get User Email",
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            1008,
+            304
+          ],
+          "alwaysOutputData": true,
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "sendTo": "={{ $('Build Email HTML').first().json.email }}",
+            "subject": "Welcome to Bippity.boo! Email me any time.",
+            "message": "={{ $('Build Email HTML').first().json.emailHtml }}",
+            "options": {}
+          },
+          "type": "n8n-nodes-base.gmail",
+          "typeVersion": 2.2,
+          "position": [
+            1232,
+            304
+          ],
+          "id": "6a99ae8c-2cd0-44c9-b7ce-a31d58e16691",
+          "name": "Send a message",
+          "webhookId": "2f875364-a6e8-4212-a076-59c65666549e",
+          "alwaysOutputData": true,
+          "credentials": {
+            "gmailOAuth2": {
+              "id": "Ldd5JDZnnNLDR97d",
+              "name": "FGM"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "operation": "update",
+            "tableId": "onboarding_summaries",
+            "matchType": "allFilters",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "user_id",
+                  "condition": "eq",
+                  "keyValue": "={{ $('Onboarding Finalize Webhook').first().json.body.userId }}"
+                }
+              ]
+            },
+            "fieldsUi": {
+              "fieldValues": [
+                {
+                  "fieldId": "status",
+                  "fieldValue": "completed"
+                }
+              ]
+            }
+          },
+          "id": "dacf89af-d8cf-4ad6-8309-8de8a842f5a7",
+          "name": "Update Onboarding Status",
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            800,
+            480
+          ],
+          "alwaysOutputData": true,
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "jsCode": "// Aggregate items into single email data and format facts\n// Get REFINED facts from the refinement pipeline, not the original webhook facts\nconst items = $input.all();\n\n// Get userId from webhook\nlet userId = null;\ntry {\n  const webhookData = $('Onboarding Finalize Webhook').first().json;\n  if (webhookData && webhookData.body) {\n    userId = webhookData.body.userId;\n  }\n} catch (e) {\n  if (items.length > 0 && items[0].json) {\n    userId = items[0].json.user_id || items[0].json.id;\n  }\n}\n\n// Get REFINED facts - try Parse Refined Facts first (AI refinement path), \n// then Prepare Direct Save (no edits path)\nlet facts = [];\ntry {\n  const refinedData = $('Parse Refined Facts').first();\n  if (refinedData && refinedData.json && refinedData.json.facts && refinedData.json.facts.length > 0) {\n    facts = refinedData.json.facts;\n  }\n} catch (e) {\n  // Parse Refined Facts not in execution path, try direct save path\n}\n\n// If no refined facts, try direct save path\nif (facts.length === 0) {\n  try {\n    const directData = $('Prepare Direct Save').first();\n    if (directData && directData.json && directData.json.facts && directData.json.facts.length > 0) {\n      facts = directData.json.facts;\n    }\n  } catch (e) {\n    // Prepare Direct Save not in execution path either\n  }\n}\n\n// Last resort fallback to webhook (should rarely happen)\nif (facts.length === 0) {\n  try {\n    const webhookData = $('Onboarding Finalize Webhook').first().json;\n    if (webhookData && webhookData.body && webhookData.body.facts) {\n      facts = webhookData.body.facts;\n    }\n  } catch (e) {}\n}\n\n// Format facts as HTML list\nlet factsHtml = '<p style=\"margin: 0; color: #64748b; font-style: italic;\">Your facts have been saved successfully.</p>';\nif (facts && facts.length > 0) {\n  factsHtml = '<ul style=\"margin: 0; padding-left: 20px; color: #475569; line-height: 1.8;\">';\n  for (const fact of facts) {\n    factsHtml += `<li style=\"margin-bottom: 8px;\">${String(fact).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</li>`;\n  }\n  factsHtml += '</ul>';\n}\n\n// Return single item with userId, facts array, and formatted facts HTML\nreturn [{\n  json: {\n    userId: userId,\n    facts: facts,\n    factsHtml: factsHtml\n  }\n}];"
+          },
+          "id": "b45af5b0-fb34-45ed-a615-5cb6892d8389",
+          "name": "Prepare Email Data",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1008,
+            480
+          ],
+          "alwaysOutputData": true
+        },
+        {
+          "parameters": {
+            "jsCode": "// Build full email HTML with facts\n// Get facts from Prepare Email Data (which already got the refined facts)\nconst items = $input.all();\nconst result = [];\n\n// Get factsHtml from Prepare Email Data node (already has refined facts)\nlet factsHtml = '<p style=\"margin: 0; color: #64748b; font-style: italic;\">Your facts have been saved successfully.</p>';\ntry {\n  const prepareEmailData = $('Prepare Email Data').first();\n  if (prepareEmailData && prepareEmailData.json && prepareEmailData.json.factsHtml) {\n    factsHtml = prepareEmailData.json.factsHtml;\n  }\n} catch (e) {\n  console.error('Could not access Prepare Email Data:', e);\n}\n\nfor (const item of items) {\n  const email = item.json.email;\n  if (!email) continue;\n  \n  // Build full email HTML\n  const emailHtml = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #1e293b; line-height: 1.6;\"><table style=\"max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\"><tr><td style=\"padding: 40px;\"><div style=\"text-align: center; margin-bottom: 32px;\"><div style=\"display: inline-block; background-color: #4f46e5; padding: 12px; border-radius: 8px; margin-bottom: 16px;\"><span style=\"color: #ffffff; font-size: 24px;\">✨</span></div><h1 style=\"margin: 0 0 8px 0; font-size: 28px; font-weight: 700; color: #1e293b;\">Welcome to bippity.boo!</h1></div><p style=\"margin: 0 0 24px 0; font-size: 16px; color: #475569;\">Your family facts have been saved. I'll create and update relevant calendar events and tasks in your Google Calendar and Google Tasks. I'll judge relevance based on the facts in the Family Facts section below.</p><p style=\"margin: 0 0 24px 0; font-size: 16px; color: #475569;\">In the meantime, feel free to forward me anything important with or without instructions. Also feel free to email me to update facts about your family.</p><div style=\"margin: 32px 0; padding: 24px; background-color: #f1f5f9; border-left: 4px solid #4f46e5; border-radius: 4px;\"><h2 style=\"margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;\">Family Facts:</h2>${factsHtml}</div><div style=\"margin-top: 32px; text-align: center;\"><p style=\"margin: 0 0 4px 0; font-size: 14px; color: #64748b;\">Your Fairy God Mother,</p><p style=\"margin: 0; font-size: 14px; color: #4f46e5;\"><a href=\"mailto:fgm@bippity.boo\" style=\"color: #4f46e5; text-decoration: none;\">fgm@bippity.boo</a></p></div></td></tr></table></body></html>`;\n  \n  result.push({\n    json: {\n      email: email,\n      emailHtml: emailHtml\n    }\n  });\n}\n\n// Only return first item to ensure single email\nreturn result.length > 0 ? [result[0]] : result;"
+          },
+          "id": "fa46a6f4-d979-4f29-b8b9-403a65d7a395",
+          "name": "Build Email HTML",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1232,
+            480
+          ],
+          "alwaysOutputData": true
+        },
+        {
+          "parameters": {
+            "operation": "delete",
+            "tableId": "onboarding_summaries",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "user_id",
+                  "condition": "eq",
+                  "keyValue": "={{ $('Onboarding Finalize Webhook').first().json.body.userId }}"
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            1440,
+            304
+          ],
+          "id": "8ef218e1-dd2d-4d29-a2f8-9241e8e3bbbb",
+          "name": "Clear Onboarding Summary",
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          }
+        }
+      ],
+      "connections": {
+        "Onboarding Finalize Webhook": {
+          "main": [
+            [
+              {
+                "node": "Has User Edits?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Has User Edits?": {
+          "main": [
+            [
+              {
+                "node": "Prepare for Refinement",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Prepare Direct Save",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Prepare for Refinement": {
+          "main": [
+            [
+              {
+                "node": "Refine Facts Agent",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Refine Facts Agent": {
+          "main": [
+            [
+              {
+                "node": "Parse Refined Facts",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "GPT-4o Refine": {
+          "ai_languageModel": [
+            [
+              {
+                "node": "Refine Facts Agent",
+                "type": "ai_languageModel",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Refined Facts": {
+          "main": [
+            [
+              {
+                "node": "Split Facts for Insert",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Prepare Direct Save": {
+          "main": [
+            [
+              {
+                "node": "Split Facts for Insert",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Split Facts for Insert": {
+          "main": [
+            [
+              {
+                "node": "Save to family_facts",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Save to family_facts": {
+          "main": [
+            [
+              {
+                "node": "Update Onboarding Status",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Update Onboarding Status": {
+          "main": [
+            [
+              {
+                "node": "Prepare Email Data",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Prepare Email Data": {
+          "main": [
+            [
+              {
+                "node": "Get User Email",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get User Email": {
+          "main": [
+            [
+              {
+                "node": "Build Email HTML",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Build Email HTML": {
+          "main": [
+            [
+              {
+                "node": "Send a message",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Send a message": {
+          "main": [
+            [
+              {
+                "node": "Clear Onboarding Summary",
+                "type": "main",
+                "index": 0
+              }
+            ]
           ]
         }
       },
-      "id": "save-facts",
-      "name": "Save to family_facts",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [
-        800,
-        304
-      ],
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
+      "authors": "Hans Chung",
+      "name": "Version 5e789a9e",
+      "description": "",
+      "autosaved": false,
+      "workflowPublishHistory": [
+        {
+          "createdAt": "2026-01-15T20:23:28.480Z",
+          "id": 374,
+          "workflowId": "NScxKgKI3k1JDJai",
+          "versionId": "5e789a9e-6fee-43e5-9dfd-397ad0bfc1df",
+          "event": "activated",
+          "userId": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a"
         }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "users",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "id",
-              "condition": "eq",
-              "keyValue": "={{ $('Onboarding Finalize Webhook').item.json.body.userId }}"
-            }
-          ]
-        }
-      },
-      "id": "get-user-email",
-      "name": "Get User Email",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [
-        1008,
-        304
-      ],
-      "credentials": {
-        "supabaseApi": {
-          "id": "LiyXJ3va3HnvvAkS",
-          "name": "Supabase account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "send",
-        "sendTo": "={{ $json.email }}",
-        "subject": "Welcome to Bippity.boo! Email me any time.",
-        "emailType": "html",
-        "message": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #1e293b; line-height: 1.6;\"><table style=\"max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\"><tr><td style=\"padding: 40px;\"><div style=\"text-align: center; margin-bottom: 32px;\"><div style=\"display: inline-block; background-color: #4f46e5; padding: 12px; border-radius: 8px; margin-bottom: 16px;\"><span style=\"color: #ffffff; font-size: 24px;\">✨</span></div><h1 style=\"margin: 0 0 8px 0; font-size: 28px; font-weight: 700; color: #1e293b;\">Welcome to bippity.boo!</h1></div><p style=\"margin: 0 0 24px 0; font-size: 16px; color: #475569;\">Your family facts have been saved. I'll create and update relevant calendar events and tasks in your Google Calendar and Google Tasks. I'll judge relevance based on the facts in the Family Facts section below.</p><p style=\"margin: 0 0 24px 0; font-size: 16px; color: #475569;\">In the meantime, feel free to forward me anything important with or without instructions. Also feel free to email me to update facts about your family.</p><div style=\"margin: 32px 0; padding: 24px; background-color: #f1f5f9; border-left: 4px solid #4f46e5; border-radius: 4px;\"><h2 style=\"margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;\">Family Facts:</h2><p style=\"margin: 0; color: #64748b; font-style: italic;\">Your facts have been saved successfully.</p></div><div style=\"margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0; text-align: center;\"><p style=\"margin: 0; font-size: 14px; color: #64748b;\"><a href=\"https://bippity.boo/dashboard\" style=\"color: #4f46e5; text-decoration: none; font-weight: 500;\">Visit your dashboard</a> to get started.</p></div><div style=\"margin-top: 32px; text-align: center;\"><p style=\"margin: 0; font-size: 14px; color: #94a3b8;\">F.M.G at bippity.boo</p></div></td></tr></table></body></html>",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.2,
-      "position": [
-        1232,
-        304
-      ],
-      "id": "6a99ae8c-2cd0-44c9-b7ce-a31d58e16691",
-      "name": "Send a message",
-      "webhookId": "2f875364-a6e8-4212-a076-59c65666549e",
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "Ldd5JDZnnNLDR97d",
-          "name": "FMG"
-        }
-      }
-    }
-  ],
-  "connections": {
-    "Onboarding Finalize Webhook": {
-      "main": [
-        [
-          {
-            "node": "Has User Edits?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Has User Edits?": {
-      "main": [
-        [
-          {
-            "node": "Prepare for Refinement",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Prepare Direct Save",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare for Refinement": {
-      "main": [
-        [
-          {
-            "node": "Refine Facts Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Refine Facts Agent": {
-      "main": [
-        [
-          {
-            "node": "Parse Refined Facts",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "GPT-4o Refine": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Refine Facts Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Refined Facts": {
-      "main": [
-        [
-          {
-            "node": "Split Facts for Insert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Direct Save": {
-      "main": [
-        [
-          {
-            "node": "Split Facts for Insert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Split Facts for Insert": {
-      "main": [
-        [
-          {
-            "node": "Save to family_facts",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Save to family_facts": {
-      "main": [
-        [
-          {
-            "node": "Get User Email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get User Email": {
-      "main": [
-        [
-          {
-            "node": "Send a message",
-            "type": "main",
-            "index": 0
-          }
-        ]
       ]
     }
-  },
-  "settings": {
-    "executionOrder": "v1",
-    "saveDataErrorExecution": "all",
-    "saveDataSuccessExecution": "all",
-    "saveManualExecutions": true,
-    "saveExecutionProgress": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
-  },
-  "staticData": null,
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "pinData": {},
-  "versionId": "df8a93b8-2d2e-42db-86a7-0da03bcbf9a0",
-  "activeVersionId": null,
-  "versionCounter": 20,
-  "triggerCount": 0
+  }
 }
-
-
-
-
-
-
-

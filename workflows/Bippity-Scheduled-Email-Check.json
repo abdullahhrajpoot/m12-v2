@@ -1,0 +1,1956 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-01-15T18:24:32.278Z",
+    "createdAt": "2025-12-04T21:57:08.101Z",
+    "id": "YLmpF5CnOPUFDYJz",
+    "name": "Bippity - Scheduled Email Check",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "=cronExpression",
+                "expression": "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          -7584,
+          512
+        ],
+        "id": "b01ad4e6-dd4f-47ad-85a2-8f6e346c3a4a",
+        "name": "Every Hour"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "users",
+          "returnAll": true,
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "status",
+                "condition": "eq",
+                "keyValue": "active"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -7360,
+          512
+        ],
+        "id": "7fbe9d4f-8c92-47d7-85e0-3c4e34497e59",
+        "name": "Get Active Users",
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          -7136,
+          432
+        ],
+        "id": "b656c269-26ca-4ed6-9fd6-9a9d4394a1d9",
+        "name": "Process One User at a Time"
+      },
+      {
+        "parameters": {
+          "url": "https://bippity.boo/api/auth/tokens",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "userId",
+                "value": "={{ $json.id }}"
+              },
+              {
+                "name": "provider",
+                "value": "google"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $vars.N8N_API_KEY }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -6928,
+          512
+        ],
+        "id": "bfb3bcd2-ce31-447f-8201-9d229277e14f",
+        "name": "Get Token from Supabase",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "version": 2,
+              "leftValue": "",
+              "caseSensitive": true,
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "has-no-error",
+                "leftValue": "={{ $json.has_error }}",
+                "rightValue": false,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              },
+              {
+                "id": "has-access-token",
+                "leftValue": "={{ $json.access_token }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -6736,
+          560
+        ],
+        "id": "bc93360c-fe81-4de9-a75a-0e54c21c40c6",
+        "name": "Has Valid Token?"
+      },
+      {
+        "parameters": {
+          "jsCode": "const tokenData = $('Check Token Error').item.json;\nconst user = $('Process One User at a Time').item.json;\n\nreturn [{\n  json: {\n    user_id: user.id,\n    user_email: user.email,\n    access_token: tokenData.access_token,\n    retry_count: 0\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -6480,
+          400
+        ],
+        "id": "1f75cc5d-0193-4a9f-80ae-29791432df07",
+        "name": "Prepare User Context"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "unified_events",
+          "limit": 1,
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "user_id",
+                "condition": "eq",
+                "keyValue": "={{ $json.user_id }}"
+              },
+              {
+                "keyName": "channel",
+                "condition": "eq",
+                "keyValue": "gmail"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -6336,
+          400
+        ],
+        "id": "73a562a4-d58e-446e-97e6-f11e4ab239ac",
+        "name": "Get Last Email Date",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "blacklisted_domains",
+          "limit": 100,
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "user_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Prepare User Context').item.json.user_id }}"
+              },
+              {
+                "keyName": "is_active",
+                "condition": "eq",
+                "keyValue": "true"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -6016,
+          224
+        ],
+        "id": "f77ec904-9bf6-4003-8bf3-f388c288743c",
+        "name": "Get Blacklisted Domains",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const userContext = $('Prepare User Context').item.json;\nconst lastEmailResult = $('Get Last Email Date').all();\nconst lastEmail = lastEmailResult.length > 0 && lastEmailResult[0].json.id ? lastEmailResult[0].json : null;\nconst blacklistDomainData = $('Get Blacklisted Domains').all().map(i => i.json).filter(b => b.domain);\n\n// Build blacklist filters from user's blacklisted domains/addresses\n// Supports both formats:\n// - \"marketing.com\" or \"@marketing.com\" -> \"-from:@marketing.com\" (domain)\n// - \"noreply@company.com\" -> \"-from:noreply@company.com\" (full address)\nconst blacklistFilters = blacklistDomainData\n  .map(b => String(b.domain).trim())\n  .filter(d => d.length > 0)\n  .map(entry => {\n    // Check if it's a full email address (has @ not at the start)\n    if (entry.includes('@') && !entry.startsWith('@')) {\n      // Full email address\n      return `-from:${entry}`;\n    } else {\n      // Domain - ensure it has @ prefix for Gmail filter\n      const domain = entry.startsWith('@') ? entry : `@${entry}`;\n      return `-from:${domain}`;\n    }\n  })\n  .join(' ');\n\n// Determine the \"after\" date (since last processed email)\nlet afterTimestamp;\nif (lastEmail && lastEmail.received_at) {\n  afterTimestamp = Math.floor(new Date(lastEmail.received_at).getTime() / 1000);\n} else {\n  // Default to 90 days ago for first run\n  const ninetyDaysAgo = new Date();\n  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);\n  afterTimestamp = Math.floor(ninetyDaysAgo.getTime() / 1000);\n}\n\n// Build single Gmail query:\n// - after:timestamp - only emails since last processed\n// - category:primary - only primary inbox (no promotions/social/updates)\n// - blacklist filters\nconst gmailQuery = `after:${afterTimestamp} category:primary${blacklistFilters ? ' ' + blacklistFilters : ''}`;\n\n// Output single query (no batching needed)\nreturn [{\n  json: {\n    ...userContext,\n    gmail_query: gmailQuery,\n    has_previous_emails: !!(lastEmail && lastEmail.received_at)\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -5600,
+          400
+        ],
+        "id": "8f81c929-c6da-486b-be17-9f270700f74a",
+        "name": "Build Gmail Query"
+      },
+      {
+        "parameters": {
+          "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "q",
+                "value": "={{ $json.gmail_query }}"
+              },
+              {
+                "name": "maxResults",
+                "value": "50"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $json.access_token }}"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -5152,
+          400
+        ],
+        "id": "81b00eda-ea73-443a-916f-ab905ec7a8bf",
+        "name": "Search Gmail",
+        "alwaysOutputData": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const response = $input.first().json;\nconst queryContext = $('Build Gmail Query').item.json;\n\n// Check for rate limit error (429)\nif (response.statusCode === 429) {\n  const retryAfter = parseInt(response.headers?.['retry-after']) || 60;\n  const retryCount = queryContext.retry_count || 0;\n  \n  if (retryCount < 3) {\n    return [{\n      json: {\n        ...queryContext,\n        rate_limited: true,\n        retry_after_seconds: retryAfter * Math.pow(2, retryCount),\n        retry_count: retryCount + 1,\n        messages: []\n      }\n    }];\n  } else {\n    return [{\n      json: {\n        ...queryContext,\n        rate_limited: true,\n        max_retries_exceeded: true,\n        messages: []\n      }\n    }];\n  }\n}\n\n// Check for other errors\nif (response.statusCode >= 400) {\n  return [{\n    json: {\n      ...queryContext,\n      error: true,\n      error_code: response.statusCode,\n      error_message: response.body?.error?.message || 'Unknown error',\n      messages: []\n    }\n  }];\n}\n\n// Success - pass through the response with context\nreturn [{\n  json: {\n    ...queryContext,\n    rate_limited: false,\n    body: response.body || response\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -4928,
+          400
+        ],
+        "id": "fa23b152-198b-4365-929d-ec0bfb2b1d12",
+        "name": "Check Rate Limit"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "version": 2,
+              "leftValue": "",
+              "caseSensitive": true,
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "is-rate-limited",
+                "leftValue": "={{ $json.rate_limited }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              },
+              {
+                "id": "not-max-retries",
+                "leftValue": "={{ $json.max_retries_exceeded }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -4704,
+          400
+        ],
+        "id": "835f056b-8215-4ed9-924e-f556930321f6",
+        "name": "Is Rate Limited?"
+      },
+      {
+        "parameters": {
+          "jsCode": "const waitSeconds = $json.retry_after_seconds || 60;\nawait new Promise(resolve => setTimeout(resolve, waitSeconds * 1000));\nreturn [{ json: $json }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -4480,
+          512
+        ],
+        "id": "0a641455-3946-41b5-bd23-065aa481e44e",
+        "name": "Wait Backoff"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Dedupe messages by ID (simplified - no batching/accumulation)\nconst input = $input.first().json;\nconst userContext = $('Prepare User Context').item.json;\n\n// Get messages from the response\nconst response = input.body || input;\nconst messages = response.messages || [];\n\n// Dedupe by message ID\nconst seen = new Set();\nconst uniqueMessages = [];\nfor (const msg of messages) {\n  if (msg.id && !seen.has(msg.id)) {\n    seen.add(msg.id);\n    uniqueMessages.push(msg);\n  }\n}\n\nreturn [{\n  json: {\n    ...userContext,\n    messages: uniqueMessages,\n    total_messages: uniqueMessages.length\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -4256,
+          400
+        ],
+        "id": "1128b476-3837-42fd-a658-780bd9a82000",
+        "name": "Dedupe Messages"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "version": 2,
+              "leftValue": "",
+              "caseSensitive": true,
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "has-messages",
+                "leftValue": "={{ $json.messages?.length }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -4032,
+          400
+        ],
+        "id": "f72e668f-24e8-4b7d-8d42-05e7df3c1c0c",
+        "name": "Has New Emails?"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $input.first().json;\nconst messages = input.messages || [];\n\nreturn messages.map(msg => ({\n  json: {\n    message_id: msg.id,\n    thread_id: msg.threadId,\n    user_id: input.user_id,\n    user_email: input.user_email,\n    access_token: input.access_token,\n    retry_count: 0\n  }\n}));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -3808,
+          304
+        ],
+        "id": "f977e846-d69a-490a-b0c1-34ae033ba169",
+        "name": "Split Messages"
+      },
+      {
+        "parameters": {
+          "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{ $json.message_id }}",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "format",
+                "value": "full"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $json.access_token }}"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -3584,
+          304
+        ],
+        "id": "a77aaee1-931e-44d2-bc49-9b881b5b4fe6",
+        "name": "Get Email Content",
+        "alwaysOutputData": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Process ALL items from Get Email Content\nconst items = $input.all();\nconst results = [];\n\nfunction decodeBase64Url(data) {\n  return Buffer.from(data, 'base64url').toString('utf-8');\n}\n\nfunction getHeader(headers, name) {\n  const header = headers.find(h => h.name.toLowerCase() === name.toLowerCase());\n  return header ? header.value : null;\n}\n\nfor (const item of items) {\n  const input = item.json;\n  \n  // Get user context from Split Messages\n  const userContext = {\n    user_id: input.user_id || $('Split Messages').first().json.user_id,\n    access_token: input.access_token || $('Split Messages').first().json.access_token\n  };\n\n  // Check for rate limit on individual message fetch\n  if (input.statusCode === 429) {\n    const retryAfter = parseInt(input.headers?.['retry-after']) || 30;\n    const retryCount = input.retry_count || 0;\n    \n    if (retryCount < 3) {\n      // Skip this item for now - would need retry logic\n      continue;\n    }\n    continue;\n  }\n\n  // Check for other errors\n  if (input.statusCode >= 400) {\n    continue;\n  }\n\n  // Success - parse the email\n  const response = input.body || input;\n  const payload = response.payload;\n  \n  if (!payload) {\n    continue;\n  }\n  \n  // UPDATED: Enhanced body extraction logic\n  let bodyText = '';\n\n  // First check if Gmail returned simplified fields\n  if (response.textBody) {\n    bodyText = response.textBody;\n  } else if (response.body && typeof response.body === 'string') {\n    bodyText = response.body;\n  } else if (payload.parts && payload.parts.length) {\n    // Handle multipart messages\n    for (const part of payload.parts) {\n      if (part.mimeType === 'text/plain' && part.body && part.body.data) {\n        bodyText += decodeBase64Url(part.body.data);\n      } else if (part.mimeType === 'text/html' && part.body && part.body.data && !bodyText) {\n        // Fallback to HTML if no plain text found\n        bodyText += decodeBase64Url(part.body.data);\n      }\n    }\n  } else if (payload.body && payload.body.data) {\n    // Handle single-part messages\n    bodyText = decodeBase64Url(payload.body.data);\n  }\n\n  const headers = payload.headers || [];\n\n  results.push({\n    json: {\n      id: response.id,\n      thread_id: response.threadId,\n      user_id: userContext.user_id,\n      subject: getHeader(headers, 'Subject'),\n      from_email: getHeader(headers, 'From'),\n      to: getHeader(headers, 'To'),\n      date: getHeader(headers, 'Date'),\n      body: bodyText,\n      snippet: response.snippet,\n      received_at: new Date(parseInt(response.internalDate)).toISOString()\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -3360,
+          304
+        ],
+        "id": "f455b526-8d73-48ca-b213-b974f80a3916",
+        "name": "Parse Email + Rate Limit"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=INSERT INTO unified_events (user_id, channel, source_id, source_thread_id, event_type, subject, snippet, body_text, from_email, received_at, is_processed, processing_status)\nVALUES ('{{ $json.user_id }}', 'gmail', '{{ $json.id }}', '{{ $json.thread_id }}', 'email', {{ $json.subject ? \"'\" + $json.subject.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, {{ $json.snippet ? \"'\" + $json.snippet.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, {{ $json.body ? \"'\" + $json.body.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, {{ $json.from_email ? \"'\" + $json.from_email.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, '{{ $json.received_at }}', false, 'pending')\nON CONFLICT (user_id, channel, source_id) \nDO UPDATE SET \n  subject = EXCLUDED.subject,\n  snippet = EXCLUDED.snippet,\n  body_text = EXCLUDED.body_text,\n  updated_at = NOW();",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          -2912,
+          304
+        ],
+        "id": "6beb372e-73de-4f1c-aad3-9f99e869fb7e",
+        "name": "Save to Unified Events",
+        "credentials": {
+          "postgres": {
+            "id": "ZNCoVWFGbTE3BPha",
+            "name": "Supabase via Postgres"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "amount": 1
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          -2688,
+          304
+        ],
+        "id": "0c244bc9-f57b-4ddc-9c1c-f57e8fdf6218",
+        "name": "Rate Limit Delay",
+        "webhookId": "rate-limit-wait"
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "users",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "id",
+                "condition": "eq",
+                "keyValue": "={{ $('Check Token Error').item.json.user_id }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "status",
+                "fieldValue": "needs_reauth"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -6480,
+          608
+        ],
+        "id": "e8ecef16-59a5-4a7b-943a-48152e9eb49a",
+        "name": "Mark Needs Reauth",
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 1
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          -6256,
+          608
+        ],
+        "id": "6fcf630d-5630-46d5-a53a-4e528140f505",
+        "name": "Delay Before Next User",
+        "webhookId": "next-user-wait"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          -3808,
+          496
+        ],
+        "id": "38f2af85-ae40-44ad-8e68-7714ad10289e",
+        "name": "No New Emails"
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "connected_services",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "user_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Prepare User Context').first().json.user_id }}"
+              },
+              {
+                "keyName": "service_name",
+                "condition": "eq",
+                "keyValue": "google"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "last_sync_at",
+                "fieldValue": "={{ $now.toISO() }}"
+              },
+              {
+                "fieldId": "consecutive_failures",
+                "fieldValue": "0"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -2240,
+          496
+        ],
+        "id": "76ea2d3c-117f-42d0-b7dc-3a4e569250b2",
+        "name": "Update a row",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "LiyXJ3va3HnvvAkS",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Check for Supabase token API errors\nconst tokenResponse = $input.first().json;\n\n// Get user data\nlet user = null;\nconst userFromSplit = $('Process One User at a Time').first();\nif (userFromSplit && userFromSplit.json) {\n  user = userFromSplit.json;\n} else {\n  const allUsers = $('Process One User at a Time').all();\n  if (allUsers && allUsers.length > 0 && allUsers[0].json) {\n    user = allUsers[0].json;\n  }\n}\n\n// Check if API returned an error or token is missing/expired\nconst hasError = tokenResponse.error || tokenResponse.is_expired || !tokenResponse.access_token;\n\nif (hasError) {\n  const errorMessage = tokenResponse.error || (tokenResponse.is_expired ? 'Token expired' : 'No access token');\n  \n  return [{\n    json: {\n      user_id: user?.id || null,\n      user_email: user?.email || null,\n      has_error: true,\n      error_message: errorMessage,\n      token_response: tokenResponse\n    }\n  }];\n}\n\n// Success - pass through the token\nreturn [{\n  json: {\n    access_token: tokenResponse.access_token,\n    refresh_token: tokenResponse.refresh_token,\n    expires_at: tokenResponse.expires_at,\n    user_id: user?.id || null,\n    user_email: user?.email || null,\n    has_error: false\n  }\n}];"
+        },
+        "id": "check-nango-error",
+        "name": "Check Token Error",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -6704,
+          400
+        ]
+      }
+    ],
+    "connections": {
+      "Every Hour": {
+        "main": [
+          [
+            {
+              "node": "Get Active Users",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Active Users": {
+        "main": [
+          [
+            {
+              "node": "Process One User at a Time",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Valid Token?": {
+        "main": [
+          [
+            {
+              "node": "Prepare User Context",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Mark Needs Reauth",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare User Context": {
+        "main": [
+          [
+            {
+              "node": "Get Last Email Date",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Search Gmail": {
+        "main": [
+          [
+            {
+              "node": "Check Rate Limit",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Rate Limit": {
+        "main": [
+          [
+            {
+              "node": "Is Rate Limited?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Rate Limited?": {
+        "main": [
+          [
+            {
+              "node": "Wait Backoff",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Dedupe Messages",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait Backoff": {
+        "main": [
+          [
+            {
+              "node": "Search Gmail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dedupe Messages": {
+        "main": [
+          [
+            {
+              "node": "Has New Emails?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has New Emails?": {
+        "main": [
+          [
+            {
+              "node": "Split Messages",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "No New Emails",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Split Messages": {
+        "main": [
+          [
+            {
+              "node": "Get Email Content",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Email Content": {
+        "main": [
+          [
+            {
+              "node": "Parse Email + Rate Limit",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Save to Unified Events": {
+        "main": [
+          [
+            {
+              "node": "Rate Limit Delay",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rate Limit Delay": {
+        "main": [
+          [
+            {
+              "node": "Update a row",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mark Needs Reauth": {
+        "main": [
+          [
+            {
+              "node": "Delay Before Next User",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Delay Before Next User": {
+        "main": [
+          [
+            {
+              "node": "Process One User at a Time",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "No New Emails": {
+        "main": [
+          [
+            {
+              "node": "Update a row",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Token from Supabase": {
+        "main": [
+          [
+            {
+              "node": "Check Token Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Token Error": {
+        "main": [
+          [
+            {
+              "node": "Has Valid Token?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Last Email Date": {
+        "main": [
+          [
+            {
+              "node": "Get Blacklisted Domains",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Blacklisted Domains": {
+        "main": [
+          [
+            {
+              "node": "Build Gmail Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Email + Rate Limit": {
+        "main": [
+          [
+            {
+              "node": "Save to Unified Events",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Gmail Query": {
+        "main": [
+          [
+            {
+              "node": "Search Gmail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process One User at a Time": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Get Token from Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update a row": {
+        "main": [
+          [
+            {
+              "node": "Process One User at a Time",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "timeSavedMode": "fixed",
+      "errorWorkflow": "fyNaHTZY8javrwU5"
+    },
+    "staticData": {
+      "node:Every Hour": {
+        "recurrenceRules": []
+      }
+    },
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "pinData": {},
+    "versionId": "f8d05668-a3d7-452c-b6ad-506774e2b28b",
+    "activeVersionId": "f8d05668-a3d7-452c-b6ad-506774e2b28b",
+    "versionCounter": 81,
+    "triggerCount": 1,
+    "shared": [
+      {
+        "updatedAt": "2025-12-04T21:57:08.104Z",
+        "createdAt": "2025-12-04T21:57:08.104Z",
+        "role": "workflow:owner",
+        "workflowId": "YLmpF5CnOPUFDYJz",
+        "projectId": "kvPchBqTqBoD9S7f",
+        "project": {
+          "updatedAt": "2025-08-14T19:31:26.000Z",
+          "createdAt": "2025-07-30T17:31:40.740Z",
+          "id": "kvPchBqTqBoD9S7f",
+          "name": "ChungFamilyParents inbound message parser",
+          "type": "team",
+          "icon": {
+            "type": "icon",
+            "value": "layers"
+          },
+          "description": "Helps family make sure that they don't drop the ball on todos or events for the kids when sent in via some message.",
+          "creatorId": null,
+          "projectRelations": [
+            {
+              "updatedAt": "2025-08-14T19:31:26.958Z",
+              "createdAt": "2025-08-14T19:31:26.958Z",
+              "userId": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a",
+              "projectId": "kvPchBqTqBoD9S7f",
+              "user": {
+                "updatedAt": "2026-01-26T08:08:03.000Z",
+                "createdAt": "2025-07-29T23:07:39.928Z",
+                "id": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a",
+                "email": "hanschung@gmail.com",
+                "firstName": "Hans",
+                "lastName": "Chung",
+                "personalizationAnswers": null,
+                "settings": {
+                  "userActivated": false,
+                  "easyAIWorkflowOnboarded": true
+                },
+                "disabled": false,
+                "mfaEnabled": false,
+                "lastActiveAt": "2026-01-26",
+                "isPending": false
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "tags": [],
+    "activeVersion": {
+      "updatedAt": "2026-01-15T18:24:52.000Z",
+      "createdAt": "2026-01-15T18:22:16.006Z",
+      "versionId": "f8d05668-a3d7-452c-b6ad-506774e2b28b",
+      "workflowId": "YLmpF5CnOPUFDYJz",
+      "nodes": [
+        {
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "=cronExpression",
+                  "expression": "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1.2,
+          "position": [
+            -7584,
+            512
+          ],
+          "id": "b01ad4e6-dd4f-47ad-85a2-8f6e346c3a4a",
+          "name": "Every Hour"
+        },
+        {
+          "parameters": {
+            "operation": "getAll",
+            "tableId": "users",
+            "returnAll": true,
+            "matchType": "allFilters",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "status",
+                  "condition": "eq",
+                  "keyValue": "active"
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            -7360,
+            512
+          ],
+          "id": "7fbe9d4f-8c92-47d7-85e0-3c4e34497e59",
+          "name": "Get Active Users",
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "options": {}
+          },
+          "type": "n8n-nodes-base.splitInBatches",
+          "typeVersion": 3,
+          "position": [
+            -7136,
+            432
+          ],
+          "id": "b656c269-26ca-4ed6-9fd6-9a9d4394a1d9",
+          "name": "Process One User at a Time"
+        },
+        {
+          "parameters": {
+            "url": "https://bippity.boo/api/auth/tokens",
+            "sendQuery": true,
+            "queryParameters": {
+              "parameters": [
+                {
+                  "name": "userId",
+                  "value": "={{ $json.id }}"
+                },
+                {
+                  "name": "provider",
+                  "value": "google"
+                }
+              ]
+            },
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "=Bearer {{ $vars.N8N_API_KEY }}"
+                }
+              ]
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            -6928,
+            512
+          ],
+          "id": "bfb3bcd2-ce31-447f-8201-9d229277e14f",
+          "name": "Get Token from Supabase",
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "version": 2,
+                "leftValue": "",
+                "caseSensitive": true,
+                "typeValidation": "strict"
+              },
+              "conditions": [
+                {
+                  "id": "has-no-error",
+                  "leftValue": "={{ $json.has_error }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                },
+                {
+                  "id": "has-access-token",
+                  "leftValue": "={{ $json.access_token }}",
+                  "rightValue": "",
+                  "operator": {
+                    "type": "string",
+                    "operation": "notEmpty"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2.2,
+          "position": [
+            -6736,
+            560
+          ],
+          "id": "bc93360c-fe81-4de9-a75a-0e54c21c40c6",
+          "name": "Has Valid Token?"
+        },
+        {
+          "parameters": {
+            "jsCode": "const tokenData = $('Check Token Error').item.json;\nconst user = $('Process One User at a Time').item.json;\n\nreturn [{\n  json: {\n    user_id: user.id,\n    user_email: user.email,\n    access_token: tokenData.access_token,\n    retry_count: 0\n  }\n}];"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -6480,
+            400
+          ],
+          "id": "1f75cc5d-0193-4a9f-80ae-29791432df07",
+          "name": "Prepare User Context"
+        },
+        {
+          "parameters": {
+            "operation": "getAll",
+            "tableId": "unified_events",
+            "limit": 1,
+            "matchType": "allFilters",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "user_id",
+                  "condition": "eq",
+                  "keyValue": "={{ $json.user_id }}"
+                },
+                {
+                  "keyName": "channel",
+                  "condition": "eq",
+                  "keyValue": "gmail"
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            -6336,
+            400
+          ],
+          "id": "73a562a4-d58e-446e-97e6-f11e4ab239ac",
+          "name": "Get Last Email Date",
+          "alwaysOutputData": true,
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "operation": "getAll",
+            "tableId": "blacklisted_domains",
+            "limit": 100,
+            "matchType": "allFilters",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "user_id",
+                  "condition": "eq",
+                  "keyValue": "={{ $('Prepare User Context').item.json.user_id }}"
+                },
+                {
+                  "keyName": "is_active",
+                  "condition": "eq",
+                  "keyValue": "true"
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            -6016,
+            224
+          ],
+          "id": "f77ec904-9bf6-4003-8bf3-f388c288743c",
+          "name": "Get Blacklisted Domains",
+          "alwaysOutputData": true,
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "jsCode": "const userContext = $('Prepare User Context').item.json;\nconst lastEmailResult = $('Get Last Email Date').all();\nconst lastEmail = lastEmailResult.length > 0 && lastEmailResult[0].json.id ? lastEmailResult[0].json : null;\nconst blacklistDomainData = $('Get Blacklisted Domains').all().map(i => i.json).filter(b => b.domain);\n\n// Build blacklist filters from user's blacklisted domains/addresses\n// Supports both formats:\n// - \"marketing.com\" or \"@marketing.com\" -> \"-from:@marketing.com\" (domain)\n// - \"noreply@company.com\" -> \"-from:noreply@company.com\" (full address)\nconst blacklistFilters = blacklistDomainData\n  .map(b => String(b.domain).trim())\n  .filter(d => d.length > 0)\n  .map(entry => {\n    // Check if it's a full email address (has @ not at the start)\n    if (entry.includes('@') && !entry.startsWith('@')) {\n      // Full email address\n      return `-from:${entry}`;\n    } else {\n      // Domain - ensure it has @ prefix for Gmail filter\n      const domain = entry.startsWith('@') ? entry : `@${entry}`;\n      return `-from:${domain}`;\n    }\n  })\n  .join(' ');\n\n// Determine the \"after\" date (since last processed email)\nlet afterTimestamp;\nif (lastEmail && lastEmail.received_at) {\n  afterTimestamp = Math.floor(new Date(lastEmail.received_at).getTime() / 1000);\n} else {\n  // Default to 90 days ago for first run\n  const ninetyDaysAgo = new Date();\n  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);\n  afterTimestamp = Math.floor(ninetyDaysAgo.getTime() / 1000);\n}\n\n// Build single Gmail query:\n// - after:timestamp - only emails since last processed\n// - category:primary - only primary inbox (no promotions/social/updates)\n// - blacklist filters\nconst gmailQuery = `after:${afterTimestamp} category:primary${blacklistFilters ? ' ' + blacklistFilters : ''}`;\n\n// Output single query (no batching needed)\nreturn [{\n  json: {\n    ...userContext,\n    gmail_query: gmailQuery,\n    has_previous_emails: !!(lastEmail && lastEmail.received_at)\n  }\n}];"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -5600,
+            400
+          ],
+          "id": "8f81c929-c6da-486b-be17-9f270700f74a",
+          "name": "Build Gmail Query"
+        },
+        {
+          "parameters": {
+            "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+            "sendQuery": true,
+            "queryParameters": {
+              "parameters": [
+                {
+                  "name": "q",
+                  "value": "={{ $json.gmail_query }}"
+                },
+                {
+                  "name": "maxResults",
+                  "value": "50"
+                }
+              ]
+            },
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "=Bearer {{ $json.access_token }}"
+                }
+              ]
+            },
+            "options": {
+              "response": {
+                "response": {
+                  "fullResponse": true
+                }
+              }
+            }
+          },
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            -5152,
+            400
+          ],
+          "id": "81b00eda-ea73-443a-916f-ab905ec7a8bf",
+          "name": "Search Gmail",
+          "alwaysOutputData": true,
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "const response = $input.first().json;\nconst queryContext = $('Build Gmail Query').item.json;\n\n// Check for rate limit error (429)\nif (response.statusCode === 429) {\n  const retryAfter = parseInt(response.headers?.['retry-after']) || 60;\n  const retryCount = queryContext.retry_count || 0;\n  \n  if (retryCount < 3) {\n    return [{\n      json: {\n        ...queryContext,\n        rate_limited: true,\n        retry_after_seconds: retryAfter * Math.pow(2, retryCount),\n        retry_count: retryCount + 1,\n        messages: []\n      }\n    }];\n  } else {\n    return [{\n      json: {\n        ...queryContext,\n        rate_limited: true,\n        max_retries_exceeded: true,\n        messages: []\n      }\n    }];\n  }\n}\n\n// Check for other errors\nif (response.statusCode >= 400) {\n  return [{\n    json: {\n      ...queryContext,\n      error: true,\n      error_code: response.statusCode,\n      error_message: response.body?.error?.message || 'Unknown error',\n      messages: []\n    }\n  }];\n}\n\n// Success - pass through the response with context\nreturn [{\n  json: {\n    ...queryContext,\n    rate_limited: false,\n    body: response.body || response\n  }\n}];"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -4928,
+            400
+          ],
+          "id": "fa23b152-198b-4365-929d-ec0bfb2b1d12",
+          "name": "Check Rate Limit"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "version": 2,
+                "leftValue": "",
+                "caseSensitive": true,
+                "typeValidation": "strict"
+              },
+              "conditions": [
+                {
+                  "id": "is-rate-limited",
+                  "leftValue": "={{ $json.rate_limited }}",
+                  "rightValue": true,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                },
+                {
+                  "id": "not-max-retries",
+                  "leftValue": "={{ $json.max_retries_exceeded }}",
+                  "rightValue": true,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "notEquals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2.2,
+          "position": [
+            -4704,
+            400
+          ],
+          "id": "835f056b-8215-4ed9-924e-f556930321f6",
+          "name": "Is Rate Limited?"
+        },
+        {
+          "parameters": {
+            "jsCode": "const waitSeconds = $json.retry_after_seconds || 60;\nawait new Promise(resolve => setTimeout(resolve, waitSeconds * 1000));\nreturn [{ json: $json }];"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -4480,
+            512
+          ],
+          "id": "0a641455-3946-41b5-bd23-065aa481e44e",
+          "name": "Wait Backoff"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Dedupe messages by ID (simplified - no batching/accumulation)\nconst input = $input.first().json;\nconst userContext = $('Prepare User Context').item.json;\n\n// Get messages from the response\nconst response = input.body || input;\nconst messages = response.messages || [];\n\n// Dedupe by message ID\nconst seen = new Set();\nconst uniqueMessages = [];\nfor (const msg of messages) {\n  if (msg.id && !seen.has(msg.id)) {\n    seen.add(msg.id);\n    uniqueMessages.push(msg);\n  }\n}\n\nreturn [{\n  json: {\n    ...userContext,\n    messages: uniqueMessages,\n    total_messages: uniqueMessages.length\n  }\n}];"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -4256,
+            400
+          ],
+          "id": "1128b476-3837-42fd-a658-780bd9a82000",
+          "name": "Dedupe Messages"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "version": 2,
+                "leftValue": "",
+                "caseSensitive": true,
+                "typeValidation": "strict"
+              },
+              "conditions": [
+                {
+                  "id": "has-messages",
+                  "leftValue": "={{ $json.messages?.length }}",
+                  "rightValue": 0,
+                  "operator": {
+                    "type": "number",
+                    "operation": "gt"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2.2,
+          "position": [
+            -4032,
+            400
+          ],
+          "id": "f72e668f-24e8-4b7d-8d42-05e7df3c1c0c",
+          "name": "Has New Emails?"
+        },
+        {
+          "parameters": {
+            "jsCode": "const input = $input.first().json;\nconst messages = input.messages || [];\n\nreturn messages.map(msg => ({\n  json: {\n    message_id: msg.id,\n    thread_id: msg.threadId,\n    user_id: input.user_id,\n    user_email: input.user_email,\n    access_token: input.access_token,\n    retry_count: 0\n  }\n}));"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -3808,
+            304
+          ],
+          "id": "f977e846-d69a-490a-b0c1-34ae033ba169",
+          "name": "Split Messages"
+        },
+        {
+          "parameters": {
+            "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{ $json.message_id }}",
+            "sendQuery": true,
+            "queryParameters": {
+              "parameters": [
+                {
+                  "name": "format",
+                  "value": "full"
+                }
+              ]
+            },
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "=Bearer {{ $json.access_token }}"
+                }
+              ]
+            },
+            "options": {
+              "response": {
+                "response": {
+                  "fullResponse": true
+                }
+              }
+            }
+          },
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            -3584,
+            304
+          ],
+          "id": "a77aaee1-931e-44d2-bc49-9b881b5b4fe6",
+          "name": "Get Email Content",
+          "alwaysOutputData": true,
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Process ALL items from Get Email Content\nconst items = $input.all();\nconst results = [];\n\nfunction decodeBase64Url(data) {\n  return Buffer.from(data, 'base64url').toString('utf-8');\n}\n\nfunction getHeader(headers, name) {\n  const header = headers.find(h => h.name.toLowerCase() === name.toLowerCase());\n  return header ? header.value : null;\n}\n\nfor (const item of items) {\n  const input = item.json;\n  \n  // Get user context from Split Messages\n  const userContext = {\n    user_id: input.user_id || $('Split Messages').first().json.user_id,\n    access_token: input.access_token || $('Split Messages').first().json.access_token\n  };\n\n  // Check for rate limit on individual message fetch\n  if (input.statusCode === 429) {\n    const retryAfter = parseInt(input.headers?.['retry-after']) || 30;\n    const retryCount = input.retry_count || 0;\n    \n    if (retryCount < 3) {\n      // Skip this item for now - would need retry logic\n      continue;\n    }\n    continue;\n  }\n\n  // Check for other errors\n  if (input.statusCode >= 400) {\n    continue;\n  }\n\n  // Success - parse the email\n  const response = input.body || input;\n  const payload = response.payload;\n  \n  if (!payload) {\n    continue;\n  }\n  \n  // UPDATED: Enhanced body extraction logic\n  let bodyText = '';\n\n  // First check if Gmail returned simplified fields\n  if (response.textBody) {\n    bodyText = response.textBody;\n  } else if (response.body && typeof response.body === 'string') {\n    bodyText = response.body;\n  } else if (payload.parts && payload.parts.length) {\n    // Handle multipart messages\n    for (const part of payload.parts) {\n      if (part.mimeType === 'text/plain' && part.body && part.body.data) {\n        bodyText += decodeBase64Url(part.body.data);\n      } else if (part.mimeType === 'text/html' && part.body && part.body.data && !bodyText) {\n        // Fallback to HTML if no plain text found\n        bodyText += decodeBase64Url(part.body.data);\n      }\n    }\n  } else if (payload.body && payload.body.data) {\n    // Handle single-part messages\n    bodyText = decodeBase64Url(payload.body.data);\n  }\n\n  const headers = payload.headers || [];\n\n  results.push({\n    json: {\n      id: response.id,\n      thread_id: response.threadId,\n      user_id: userContext.user_id,\n      subject: getHeader(headers, 'Subject'),\n      from_email: getHeader(headers, 'From'),\n      to: getHeader(headers, 'To'),\n      date: getHeader(headers, 'Date'),\n      body: bodyText,\n      snippet: response.snippet,\n      received_at: new Date(parseInt(response.internalDate)).toISOString()\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [];"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -3360,
+            304
+          ],
+          "id": "f455b526-8d73-48ca-b213-b974f80a3916",
+          "name": "Parse Email + Rate Limit"
+        },
+        {
+          "parameters": {
+            "operation": "executeQuery",
+            "query": "=INSERT INTO unified_events (user_id, channel, source_id, source_thread_id, event_type, subject, snippet, body_text, from_email, received_at, is_processed, processing_status)\nVALUES ('{{ $json.user_id }}', 'gmail', '{{ $json.id }}', '{{ $json.thread_id }}', 'email', {{ $json.subject ? \"'\" + $json.subject.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, {{ $json.snippet ? \"'\" + $json.snippet.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, {{ $json.body ? \"'\" + $json.body.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, {{ $json.from_email ? \"'\" + $json.from_email.replace(/'/g, \"''\") + \"'\" : \"NULL\" }}, '{{ $json.received_at }}', false, 'pending')\nON CONFLICT (user_id, channel, source_id) \nDO UPDATE SET \n  subject = EXCLUDED.subject,\n  snippet = EXCLUDED.snippet,\n  body_text = EXCLUDED.body_text,\n  updated_at = NOW();",
+            "options": {}
+          },
+          "type": "n8n-nodes-base.postgres",
+          "typeVersion": 2.6,
+          "position": [
+            -2912,
+            304
+          ],
+          "id": "6beb372e-73de-4f1c-aad3-9f99e869fb7e",
+          "name": "Save to Unified Events",
+          "credentials": {
+            "postgres": {
+              "id": "ZNCoVWFGbTE3BPha",
+              "name": "Supabase via Postgres"
+            }
+          },
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "amount": 1
+          },
+          "type": "n8n-nodes-base.wait",
+          "typeVersion": 1.1,
+          "position": [
+            -2688,
+            304
+          ],
+          "id": "0c244bc9-f57b-4ddc-9c1c-f57e8fdf6218",
+          "name": "Rate Limit Delay",
+          "webhookId": "rate-limit-wait"
+        },
+        {
+          "parameters": {
+            "operation": "update",
+            "tableId": "users",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "id",
+                  "condition": "eq",
+                  "keyValue": "={{ $('Check Token Error').item.json.user_id }}"
+                }
+              ]
+            },
+            "fieldsUi": {
+              "fieldValues": [
+                {
+                  "fieldId": "status",
+                  "fieldValue": "needs_reauth"
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            -6480,
+            608
+          ],
+          "id": "e8ecef16-59a5-4a7b-943a-48152e9eb49a",
+          "name": "Mark Needs Reauth",
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "amount": 1
+          },
+          "type": "n8n-nodes-base.wait",
+          "typeVersion": 1.1,
+          "position": [
+            -6256,
+            608
+          ],
+          "id": "6fcf630d-5630-46d5-a53a-4e528140f505",
+          "name": "Delay Before Next User",
+          "webhookId": "next-user-wait"
+        },
+        {
+          "parameters": {},
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            -3808,
+            496
+          ],
+          "id": "38f2af85-ae40-44ad-8e68-7714ad10289e",
+          "name": "No New Emails"
+        },
+        {
+          "parameters": {
+            "operation": "update",
+            "tableId": "connected_services",
+            "matchType": "allFilters",
+            "filters": {
+              "conditions": [
+                {
+                  "keyName": "user_id",
+                  "condition": "eq",
+                  "keyValue": "={{ $('Prepare User Context').first().json.user_id }}"
+                },
+                {
+                  "keyName": "service_name",
+                  "condition": "eq",
+                  "keyValue": "google"
+                }
+              ]
+            },
+            "fieldsUi": {
+              "fieldValues": [
+                {
+                  "fieldId": "last_sync_at",
+                  "fieldValue": "={{ $now.toISO() }}"
+                },
+                {
+                  "fieldId": "consecutive_failures",
+                  "fieldValue": "0"
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.supabase",
+          "typeVersion": 1,
+          "position": [
+            -2240,
+            496
+          ],
+          "id": "76ea2d3c-117f-42d0-b7dc-3a4e569250b2",
+          "name": "Update a row",
+          "alwaysOutputData": true,
+          "credentials": {
+            "supabaseApi": {
+              "id": "LiyXJ3va3HnvvAkS",
+              "name": "Supabase account"
+            }
+          },
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Check for Supabase token API errors\nconst tokenResponse = $input.first().json;\n\n// Get user data\nlet user = null;\nconst userFromSplit = $('Process One User at a Time').first();\nif (userFromSplit && userFromSplit.json) {\n  user = userFromSplit.json;\n} else {\n  const allUsers = $('Process One User at a Time').all();\n  if (allUsers && allUsers.length > 0 && allUsers[0].json) {\n    user = allUsers[0].json;\n  }\n}\n\n// Check if API returned an error or token is missing/expired\nconst hasError = tokenResponse.error || tokenResponse.is_expired || !tokenResponse.access_token;\n\nif (hasError) {\n  const errorMessage = tokenResponse.error || (tokenResponse.is_expired ? 'Token expired' : 'No access token');\n  \n  return [{\n    json: {\n      user_id: user?.id || null,\n      user_email: user?.email || null,\n      has_error: true,\n      error_message: errorMessage,\n      token_response: tokenResponse\n    }\n  }];\n}\n\n// Success - pass through the token\nreturn [{\n  json: {\n    access_token: tokenResponse.access_token,\n    refresh_token: tokenResponse.refresh_token,\n    expires_at: tokenResponse.expires_at,\n    user_id: user?.id || null,\n    user_email: user?.email || null,\n    has_error: false\n  }\n}];"
+          },
+          "id": "check-nango-error",
+          "name": "Check Token Error",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            -6704,
+            400
+          ]
+        }
+      ],
+      "connections": {
+        "Every Hour": {
+          "main": [
+            [
+              {
+                "node": "Get Active Users",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Active Users": {
+          "main": [
+            [
+              {
+                "node": "Process One User at a Time",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Has Valid Token?": {
+          "main": [
+            [
+              {
+                "node": "Prepare User Context",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Mark Needs Reauth",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Prepare User Context": {
+          "main": [
+            [
+              {
+                "node": "Get Last Email Date",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Search Gmail": {
+          "main": [
+            [
+              {
+                "node": "Check Rate Limit",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Check Rate Limit": {
+          "main": [
+            [
+              {
+                "node": "Is Rate Limited?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Is Rate Limited?": {
+          "main": [
+            [
+              {
+                "node": "Wait Backoff",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Dedupe Messages",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Wait Backoff": {
+          "main": [
+            [
+              {
+                "node": "Search Gmail",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Dedupe Messages": {
+          "main": [
+            [
+              {
+                "node": "Has New Emails?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Has New Emails?": {
+          "main": [
+            [
+              {
+                "node": "Split Messages",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "No New Emails",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Split Messages": {
+          "main": [
+            [
+              {
+                "node": "Get Email Content",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Email Content": {
+          "main": [
+            [
+              {
+                "node": "Parse Email + Rate Limit",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Save to Unified Events": {
+          "main": [
+            [
+              {
+                "node": "Rate Limit Delay",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Rate Limit Delay": {
+          "main": [
+            [
+              {
+                "node": "Update a row",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Mark Needs Reauth": {
+          "main": [
+            [
+              {
+                "node": "Delay Before Next User",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Delay Before Next User": {
+          "main": [
+            [
+              {
+                "node": "Process One User at a Time",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "No New Emails": {
+          "main": [
+            [
+              {
+                "node": "Update a row",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Token from Supabase": {
+          "main": [
+            [
+              {
+                "node": "Check Token Error",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Check Token Error": {
+          "main": [
+            [
+              {
+                "node": "Has Valid Token?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Last Email Date": {
+          "main": [
+            [
+              {
+                "node": "Get Blacklisted Domains",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Blacklisted Domains": {
+          "main": [
+            [
+              {
+                "node": "Build Gmail Query",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Email + Rate Limit": {
+          "main": [
+            [
+              {
+                "node": "Save to Unified Events",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Build Gmail Query": {
+          "main": [
+            [
+              {
+                "node": "Search Gmail",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Process One User at a Time": {
+          "main": [
+            [],
+            [
+              {
+                "node": "Get Token from Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Update a row": {
+          "main": [
+            [
+              {
+                "node": "Process One User at a Time",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "authors": "Hans Chung",
+      "name": "Version f8d05668",
+      "description": "",
+      "autosaved": false,
+      "workflowPublishHistory": [
+        {
+          "createdAt": "2026-01-15T18:24:52.326Z",
+          "id": 367,
+          "workflowId": "YLmpF5CnOPUFDYJz",
+          "versionId": "f8d05668-a3d7-452c-b6ad-506774e2b28b",
+          "event": "activated",
+          "userId": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a"
+        }
+      ]
+    }
+  }
+}

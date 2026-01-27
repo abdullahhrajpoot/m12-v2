@@ -1,0 +1,1363 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-01-26T18:37:36.404Z",
+    "createdAt": "2026-01-24T02:03:21.582Z",
+    "id": "0bpIplwjOJJQFWxr",
+    "name": "Bippity - AI Email Processor WITH TESTING PROMPTS",
+    "description": null,
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          2352,
+          -32
+        ],
+        "id": "41f659bc-2b77-4b69-991e-ca2ede973dec",
+        "name": "Every 5 Minutes (offset)"
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "value": "public",
+            "mode": "list"
+          },
+          "table": {
+            "__rl": true,
+            "value": "unified_events",
+            "mode": "list",
+            "cachedResultName": "unified_events"
+          },
+          "limit": 10,
+          "where": {
+            "values": [
+              {
+                "column": "processing_status",
+                "value": "pending"
+              }
+            ]
+          },
+          "sort": {
+            "values": [
+              {
+                "column": "created_at"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2576,
+          -32
+        ],
+        "id": "68482316-98f9-4091-8d10-45450e63f035",
+        "name": "Get Unprocessed Emails",
+        "credentials": {
+          "postgres": {
+            "id": "ZNCoVWFGbTE3BPha",
+            "name": "Supabase via Postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=SELECT fact_type, subject, fact_text FROM family_facts WHERE user_id = '{{ $json.user_id }}' UNION ALL SELECT NULL::text, NULL::text, NULL::text FROM (SELECT 1) dummy WHERE NOT EXISTS (SELECT 1 FROM family_facts WHERE user_id = '{{ $json.user_id }}') LIMIT 100;",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          3024,
+          -32
+        ],
+        "id": "536b4108-f7ea-48f5-a29c-a3d721cd115d",
+        "name": "Get Family Facts",
+        "credentials": {
+          "postgres": {
+            "id": "ZNCoVWFGbTE3BPha",
+            "name": "Supabase via Postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Helper function: Aggressively strip HTML from text\nfunction stripHTML(html) {\n  if (!html || typeof html !== 'string') return '';\n  \n  let text = html;\n  \n  // Remove script and style tags completely (including content)\n  text = text.replace(/<script[^>]*>([\\s\\S]*?)<\\/script>/gi, '');\n  text = text.replace(/<style[^>]*>([\\s\\S]*?)<\\/style>/gi, '');\n  \n  // Convert block-level elements to newlines before removing tags\n  text = text.replace(/<br\\s*\\/?>/gi, '\\n');\n  text = text.replace(/<\\/p>/gi, '\\n');\n  text = text.replace(/<\\/div>/gi, '\\n');\n  text = text.replace(/<\\/li>/gi, '\\n');\n  text = text.replace(/<\\/tr>/gi, '\\n');\n  \n  // Remove all HTML tags\n  text = text.replace(/<[^>]+>/g, '');\n  \n  // Decode HTML entities\n  text = text.replace(/&nbsp;/g, ' ');\n  text = text.replace(/&amp;/g, '&');\n  text = text.replace(/&lt;/g, '<');\n  text = text.replace(/&gt;/g, '>');\n  text = text.replace(/&quot;/g, '\"');\n  text = text.replace(/&#39;/g, \"'\");\n  text = text.replace(/&apos;/g, \"'\");\n  \n  // Decode numeric entities\n  text = text.replace(/&#(\\d+);/g, (match, dec) => String.fromCharCode(dec));\n  text = text.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));\n  \n  // Clean up excessive whitespace\n  text = text.replace(/[ \\t]+/g, ' '); // Multiple spaces/tabs to single space\n  text = text.replace(/\\n{3,}/g, '\\n\\n'); // Multiple newlines to double newline\n  text = text.trim();\n  \n  return text;\n}\n\n// Helper function: Count words in text\nfunction countWords(text) {\n  if (!text || typeof text !== 'string') return 0;\n  const words = text.trim().split(/\\s+/).filter(word => word.length > 0);\n  return words.length;\n}\n\n// Helper function: Truncate text to maxWords, preserving word boundaries\nfunction truncateToWords(text, maxWords) {\n  if (!text || typeof text !== 'string') return '';\n  if (maxWords <= 0) return '';\n  \n  const words = text.trim().split(/\\s+/).filter(word => word.length > 0);\n  if (words.length <= maxWords) return text;\n  \n  return words.slice(0, maxWords).join(' ') + '...';\n}\n\n// Helper function: Extract up to maxIterations from email thread\nfunction extractThreadIterations(text, maxIterations) {\n  if (!text || typeof text !== 'string') return text;\n  if (maxIterations <= 0) return '';\n  \n  // Common email thread markers\n  const threadPatterns = [\n    /^On .+ wrote:/m,           // \"On [date] [name] wrote:\"\n    /^From: .+\\nSent: .+\\nTo: .+\\nSubject:/m,  // Outlook format\n    /^-----Original Message-----/m,  // Outlook\n    /^>+\\s*On .+ wrote:/m,     // Quoted with >\n    /^\\d{4}\\/\\d{2}\\/\\d{2} .+ <.+@.+>/m,  // Date email format\n  ];\n  \n  // Find all thread markers\n  let positions = [];\n  for (const pattern of threadPatterns) {\n    const matches = [...text.matchAll(new RegExp(pattern.source, 'gm'))];\n    for (const match of matches) {\n      positions.push(match.index);\n    }\n  }\n  \n  // Sort positions\n  positions = positions.sort((a, b) => a - b);\n  \n  // If no thread markers found, return original text\n  if (positions.length === 0) return text;\n  \n  // Extract text up to the (maxIterations)th marker (keep first maxIterations parts)\n  // We want the most recent iterations, so we take from the end\n  if (positions.length >= maxIterations) {\n    const cutoffIndex = positions[positions.length - maxIterations];\n    return text.substring(0, cutoffIndex).trim();\n  }\n  \n  // If fewer markers than maxIterations, return all\n  return text;\n}\n\n// Get the email event data from Process One Email node (splitInBatches)\n// The input to this node is from Get Family Facts, which contains family facts\n// We need to get the email from the upstream Process One Email node\nlet emailEvent = {};\ntry {\n  const processOneEmailData = $('Process One Email').item.json;\n  if (processOneEmailData) {\n    emailEvent = processOneEmailData;\n  } else {\n    throw new Error('Could not get email event from Process One Email node');\n  }\n} catch (e) {\n  throw new Error(`Failed to get email event from Process One Email: ${e.message}`);\n}\n\n// Get family facts from input (this node receives output from Get Family Facts)\nlet familyFacts = [];\nconst items = $input.all();\nif (items && items.length > 0) {\n  familyFacts = items.map(item => item.json?.fact_text || item.json?.factText || '').filter(f => f);\n}\n\n// Extract body_text from email event\nlet bodyText = emailEvent.body_text || emailEvent.body || emailEvent.content || '';\n\n// Check if this is a threaded email (source_id !== source_thread_id means it's part of a thread)\nconst isThreaded = emailEvent.source_id && emailEvent.source_thread_id && \n                   emailEvent.source_id !== emailEvent.source_thread_id;\n\n// For threaded emails: extract up to 3 iterations first\nif (isThreaded) {\n  bodyText = extractThreadIterations(bodyText, 3);\n}\n\n// Aggressively strip HTML\nbodyText = stripHTML(bodyText);\n\n// Cap at 1,500 words\nconst MAX_WORDS = 1500;\nif (countWords(bodyText) > MAX_WORDS) {\n  bodyText = truncateToWords(bodyText, MAX_WORDS);\n}\n\n// Combine email data with family context\nconst combinedData = {\n  ...emailEvent,\n  family_context: familyFacts.join(' '),\n  body: bodyText,\n  body_text: bodyText  // Also set body_text for consistency\n};\n\nreturn [{\n  json: combinedData\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3232,
+          -32
+        ],
+        "id": "b67bf965-14b2-4cbc-a408-c5e97d5e2d70",
+        "name": "Prepare Email + Context"
+      },
+      {
+        "parameters": {
+          "url": "https://bippity.boo/api/auth/tokens",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "userId",
+                "value": "={{ $('Prepare Email + Context').first().json.user_id }}"
+              },
+              {
+                "name": "provider",
+                "value": "google"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": []
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3456,
+          -32
+        ],
+        "id": "adbb370f-0c3c-4bba-b04b-50e3770d176b",
+        "name": "Get Token from Supabase",
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "fi07FJETSwEJ0A5u",
+            "name": "supabase Header Auth account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const context = $('Prepare Email + Context').item.json;\nconst tokenResponse = $('Get Token from Supabase').item.json;\n\n// Check if token retrieval was successful\nif (!tokenResponse || !tokenResponse.access_token) {\n  throw new Error(`Failed to get token for user ${context.user_id}: ${tokenResponse?.error || 'Unknown error'}`);\n}\n\nreturn [{\n  json: {\n    ...context,\n    access_token: tokenResponse.access_token,\n    calendar_id: 'primary'\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3808,
+          -32
+        ],
+        "id": "ab649638-ea63-47be-9fa4-f8c91f8c617d",
+        "name": "Merge Token"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=Available tools: Calendar_Search_Tool, Calendar_By_Date tool, Tasks_Search_Tool\n\nToday's Date: {{ $now.format('yyyy-MM-dd') }}\nCurrent Year: {{ $now.format('yyyy') }}\n\nEmail Details:\n- ID: {{ $json.source_id }}\n- Thread ID: {{ $json.source_thread_id }}\n- Subject: {{ $json.subject }}\n- From: {{ $json.from_email }}\n- Body: {{ $json.body_text }}\n- Received: {{ $json.received_at }}\n\n\nProcess this email:\n1. Search the calendar for keyword: {{ $json.source_thread_id }}. Search for tasks for keyword: {{ $json.source_thread_id }}. Do not specify dates.\n2. Check if this is a thread email (source_id equals thread_id).\n3. If thread email: search more comprehensively for related events/tasks. Iterate on keywords to search for tasks and events.\n4. What calendar/task changes are needed based on this email to ensure that the freshest information is reflected in the calendar and task list. Also ensure that there are no duplicates.\n5. Extract dates, keywords, and search accordingly.\n6. Provide structured analysis for Stage 2 including id strings for all tasks and calendar events mentioned in the analysis.\n\nIMPORTANT: All dates must use year {{ $now.format('yyyy') }} or later. Never use 2023 or 2024.\n\n",
+          "options": {
+            "systemMessage": "=You are a family scheduling assistant (Stage 1) that analyzes email and searches for relevant calendar events and tasks.\n\nTODAY'S DATE: {{ $now.format('yyyy-MM-dd') }}\nCURRENT YEAR: {{ $now.format('yyyy') }}\n\n\n\nInstructions:\n1. Follow the instrutions in the email.\n2. Understand what calendar/task changes are needed based on the relevant topics.\n3. Extract dates, entities, and activities intelligently.\n4. Search for relevant existing calendar events and tasks.\n5. Identify conflicts and provide structured analysis.\n\nSearch principles:\n- Analyze the email body to extract entities, activties and actions. Use these as keywords in that order or priority.\n- Use specific date ranges (if email mentions \"Friday\", search that date only in ISO 8601 format)\n- Extract relevant keywords for task matching\n- Include dates in Calendar_Search_TEST queries \n- use Calendar_By_Date_TEST for date-only-based searches\n- Start calendar search with three query terms. Limit calendar search to 6 searches per topic.\n- Start task search with three query terms. Limit task search to 6 searches per topic.\n- If you do not get any search results for a topic, then broaden the search up to the search limit.\n- Search from the email's date onward.\n- Do not use the child's name as a search term\n- It is ok to create temporary hold calendar events for undecided activities, just specify that it is a hold in the title.\n\nDecision Related and Decision Dependent Tasks\n- Do not create tasks to create another task\n- Keep decision tasks and the associated immediate action for that decision as one task. Example: deciding on an activity and signing up for it should be one task. The task details should include the sign up information and then a high-level summary of any ancillary tasks that should be at the end of the details.\n- Create as few tasks for one topic as possible. \n- Do not create tasks to confirm sign-up unless explicity instructed to\n\n\n**Thread Detection:**\n- IF source_id === thread_id → New conversation (first email in thread)\n- IF source_id !== thread_id → Part of ongoing thread (reply/forward)\n- For thread emails: ALWAYS search calendar and tasks for related items\n- Look for references to previous decisions in the thread\n- Search more broadly for context (use subject line keywords + content keywords) and use related words from Family Context.\n\nDate/Time Rules:\n- Timezone: America/Los_Angeles (Pacific Time) unless specified otherwise\n- Year: ALWAYS use {{ $now.format('yyyy') }} or later - NEVER use 2023 or 2024\n- If year not specified: use {{ $now.format('yyyy') }} unless that makes date past, then use next year\n- Grade/team not specified = assume relevant to family\n- If time does not specify AM or PM, assume it is between 7AM and 7PM\n- Date format for Calendar_By_Date_TEST: ISO 8601 with timezone (e.g., {{ $now.format('yyyy') }}-12-05T00:00:00-08:00)\n- If text and numeric date conflict, then assume that the weekday value is correct. If text and numeric date conflict and neither is a weekend date, assume the numeric date is correct.\n- If a topic is relevant and has low confidence in the date, then create a placeholder for all interpretations of the date and prepend with DATE CLARIFICATION NEEDED.\n- If an event is relevant and you don't know if the family has committed to it, then create a placeholder event and prepend with HOLD.\n- append the relevant child's name as a hashtag\n\nHandling Deadlines That Require Scheduling Before a Specific Date:\nWhen you find a task or instruction that says something must be scheduled before a specific date (X), create two new tasks:\n1. Scheduling Task: A task to schedule the appointment.\n   - Set its due date to halfway between today and X.\n2. Completion Task: A task to attend or confirm that the appointment actually happened before X.\n   - Set its due date to X.\n\n### OUTPUT FORMAT FOR STAGE 2\n\nProvide structured analysis including:\n\n1. EVENTS FOUND - List all event IDs with summary and date/time. Deduplicate search results.\n2. TASKS FOUND - List all task IDs with title and due date. Note duplicates. Deduplicate search results.\n3. RECOMMENDED ACTIONS - For each: action type (CREATE/UPDATE/DELETE/COMPLETE), target, details, reasoning. If there aren't recommended actions, then output a 200 words or less rationale of why no actions are recommended and deduplicated search results if there are search results\n4. CONFLICTS DETECTED - Time conflicts, duplicates, outdated information. Only include this section when there are conflicts.\n5. CONFIDENCE LEVEL for each action - Rate 0.0 to 1.0, note uncertainties\n\n### IMPORTANT REMINDERS\n\n- All event_ids and task_ids come from search results - never make them up\n- Search results return IDs in the \"id\" field\n- If no results found, the item doesn't exist yet (needs to be created)\n- Always search before recommending updates or deletes\n- Do not create tasks to confirm actions\n"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 2.2,
+        "position": [
+          4112,
+          -32
+        ],
+        "id": "80e7c121-b35c-441d-94bb-7881ce155f28",
+        "name": "AI Agent - Stage 1 Analysis"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=Based on the Stage 1 analysis and search results, take specific calendar and task actions.\n\nToday's Date: {{ $now.format('yyyy-MM-dd') }}\nCurrent Year: {{ $now.format('yyyy') }}\n\nStage 1 Analysis Results:\n{{ $json.stage1_analysis }}\n\nOriginal Email:\n- Subject: {{ $json.subject }}\n- Source ID: {{ $json.source_id }}\n\nAvailable tools: Calendar_Search_Tool, Calendar_By_Date_Tool, Calendar_Create_Tool, Calendar_Update_Tool, Calendar_Delete_Tool, Tasks_Search_Tool, Tasks_Create_Tool, Tasks_Update_Tool, Tasks_Delete_Tool, Tasks_Complete_Tool\n\nProcess:\n1. Review conflicts or duplicates found in Stage 1\n2. Take appropriate actions (create/update/delete)\n3. Provide summary of actions taken\n\nCRITICAL DATE RULES:\n- All dates MUST use year {{ $now.format('yyyy') }} or later\n",
+          "options": {
+            "systemMessage": "=SYSTEM PROMPT\nYou are a family scheduling action generator (Stage 2). Your job is to take the analysis and search results from Stage 1 and convert them into specific calendar and task actions.\n\nKey rules:\n- Create separate events for different activities\n- Use descriptive titles: \"Smith Family Dinner\" not \"Dinner\"\n- Set realistic durations: dinner (1.5-2h), meetings (30-60min)\n- Avoid keeping duplicate events\n- Prepend with verbs when confident: \"Pack Lunch\", \"Sign Document\", \"Return Library Books\"\n- Events or tasks that contain the same id numbers are related.\n- Do not make up Event_ID or Task_ID. All events have an id. All tasks have an id. Search results refer to their respective ids as id.\n- Tasks need titles.\n- if you can't figure out location, then do not pass a location parameter\n\n\nWhen Stage 1 finds multiple event duplicates:\n\nSMART CONSOLIDATION APPROACH:\n- Identify if events are recurring series vs single events\n- For recurring events: Use the \"this and following\" method if appropriate, or update entire series\n- For single events: Keep the most complete version\n- Identify of tasks that are semantically the same, then consolidate them\n- Identify of events that are semantically the same, then consolidate them\n\nCONSOLIDATION LOGIC:\n- Combine all unique details rather than overwriting\n- For text fields (description, title): Merge distinct information, avoid pure duplication  \n- For single-value fields (location, time): Use the most recent or most complete version\n- For lists (attendees): Combine and deduplicate\n- When in doubt, include rather than exclude information\n\nRECURRING EVENT MODIFICATIONS:\n1. TRIM THE ORIGINAL: Update existing recurring event's RRULE to end before target date (if doing \"this and following\")\n2. CREATE NEW SERIES: Insert new recurring event starting from target date with consolidated information\n3. DELETE OTHER DUPLICATES: Remove the less complete duplicate series entirely\n\n- Verify consolidation was successful by searching again with same keywords and using only one or two keywords per query.\n\nExample 1 - UPDATE existing event:\nStage 1 found: \"Family Dinner - Friday 7:00 PM to 9:00 PM\"\nNew email says: \"Move family dinner to 8pm Friday\"\n→ Action: Create a new event at 8:00 PM, then delete the old event.\n→ Reasoning: Same event, different time = UPDATE\n\nExample 2 - CREATE separate event:\nStage 1 found: \"Soccer Practice - Saturday 9:00 AM to 10:30 AM\" \nNew email says: \"Pizza party after soccer Saturday\"\n→ Action: Use calendar_create for \"Pizza Party - Saturday 10:30 AM to 12:00 PM\"\n→ Reasoning: Different activity, different time = CREATE\n\nExample 3 - CONSOLIDATE duplicates found:\nStage 1 found: \n- \"Family Dinner - Friday 7:00 PM to 9:00 PM\" \n- \"Dinner with Family - Friday 7:30 PM to 9:30 PM\"\nNew email says: \"Dinner is confirmed for Friday at 7:30pm\"\n→ Action: \n  1. Use Calendar_Create with time 7:30 PM to 9:30 PM\n  2. Use Calendar_Delete the older events (remove duplicate)\n→ Reasoning: Two similar events = consolidate into one\n\n\nRequired Format for ALL Calendar/Task Items:\n- Always end calendar descriptions with: the child's name as a hashtag and then\n\"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/ | This was generated by bippity.boo v1.1\"\n- Always end task notes with: the child's name as a hashtag and then \"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/ | This was generated by bippity.boo v1.1\"\n- Always include a list of relevant entities before the email link.\n\nDate/Time Rules:\n- Timezone: San Francisco, California unless specified otherwise\n- If year not specified: use {{ $today }} unless that makes date past, then use next year\n- Do not create events with dates before {{ $today }}\n- Do not create tasks with due dates before {{ $today }}. If task is urgent, then set due date as {{ $today }}\n- No specific time = all-day event. Only use Start Date and End Date. Do not include dateTime. End Date should be the day after the last day of the event.\n- No end time = assume 1 hour duration + append \"END TIME NOT STATED\" before any name\n- Use ISO 8601 extended format for dates/times (e.g., 2025-08-07T09:00:00-07:00) sent to tools unless it is RRULE.\n- Due dates should use RFC 3339 timestamp format.\n- For RRULE dates and times use RFC 5545 format and convert the date and time to UTC.\n- DTSTART and DTEND lines are not allowed in the RRULE field. Instead use the usual start and end fields.\nBe conservative - only take actions if confidence is high (>=0.75).\n- Do not include the word RRULE in the RRULE field.\n- If there isn't a RRULE, then don't pass a RRULE parameter\n"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 2.2,
+        "position": [
+          4560,
+          -32
+        ],
+        "id": "4ad8d375-81ee-4752-9fdf-f2116c690f21",
+        "name": "AI Agent - Stage 2 Actions"
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "mode": "list",
+            "value": "gpt-4o"
+          },
+          "options": {
+            "timeout": 300000
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          4000,
+          192
+        ],
+        "id": "3a1aef2a-7d09-4c4a-bebd-8ea73ed10447",
+        "name": "OpenAI Model Stage 1",
+        "credentials": {
+          "openAiApi": {
+            "id": "D1MyVMAJ9zLNahg3",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "mode": "list",
+            "value": "gpt-4o"
+          },
+          "options": {
+            "timeout": 300000
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          4432,
+          192
+        ],
+        "id": "3e9c3168-ec4e-45c7-be1f-a7c5b6ff2484",
+        "name": "OpenAI Model Stage 2",
+        "credentials": {
+          "openAiApi": {
+            "id": "D1MyVMAJ9zLNahg3",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const stage2Output = $('AI Agent - Stage 2 Actions').item.json;\nconst emailContext = $('Merge Token').item.json;\n\nreturn [{\n  json: {\n    email_id: emailContext.email_id,\n    user_id: emailContext.user_id,\n    stage1_output: $('AI Agent - Stage 1 Analysis').item.json.output,\n    stage2_output: stage2Output.output,\n    processed_at: new Date().toISOString()\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4832,
+          -32
+        ],
+        "id": "44a097d6-f00e-4915-ba34-93ab04efa60c",
+        "name": "Prepare Result"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=UPDATE unified_events \nSET \n  is_processed = true,\n  processing_status = 'completed',\n  processed_at = NOW(),\n  ai_output = '{{ $json.stage2_output.replace(/'/g, \"''\") }}'\nWHERE id = '{{ $json.user_id }}';",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          4992,
+          -32
+        ],
+        "id": "3830e440-6f98-40e3-80fa-29c0018bdf6c",
+        "name": "Mark Completed",
+        "credentials": {
+          "postgres": {
+            "id": "ZNCoVWFGbTE3BPha",
+            "name": "Supabase via Postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "description": "Description: Get all events on a specific date or date range. Provide After (start) and Before (end) dates in ISO 8601 format with timezone (e.g., 2025-12-05T00:00:00-08:00). To get a single day, set After to start of day and Before to end of day.\nInput:\n\nstart_date (ISO 8601 with timezone, e.g., 2025-12-05T00:00:00-08:00)\nend_date (ISO 8601 with timezone, e.g., 2025-12-06T00:00:00-08:00)\n\nDate rules:\n\nTimezone: America/Los_Angeles (Pacific) unless specified otherwise\nIf year not specified: use current year unless that makes date in the past, then use next year",
+          "workflowId": {
+            "__rl": true,
+            "value": "Mes8HQVlpiFkm6Dj",
+            "mode": "list"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "start_date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('start_date', ``, 'string') }}",
+              "end_date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('end_date', ``, 'string') }}",
+              "access_token": "={{ $('Merge Token').first().json.access_token }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "start_date",
+                "displayName": "start_date",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "end_date",
+                "displayName": "end_date",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "access_token",
+                "displayName": "access_token",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          3904,
+          368
+        ],
+        "id": "47827144-2fe0-412f-9104-dd1bc7d54257",
+        "name": "Calendar_By_Date_Tool'"
+      },
+      {
+        "parameters": {
+          "description": "Description: Search tasks by keyword. Input should be a single keyword string (1-2 words). Searches in task title and notes. Returns incomplete tasks only.\nInput: keyword (string, 1-2 words only)\nExample inputs: \"library\", \"sign\", \"pack\", \"homework\"\nResponse notes: Results include task id (use this for updates/deletes/complete), title, notes, due date, status.",
+          "workflowId": {
+            "__rl": true,
+            "value": "zG1KVSuaQVTdJ2S2",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/zG1KVSuaQVTdJ2S2",
+            "cachedResultName": "ChungFamilyParents inbound message parser — Tasks_Search_MultiTenant"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "keyword": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('keyword', ``, 'string') }}",
+              "access_token": "={{ $('Merge Token').first().json.access_token }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "keyword",
+                "displayName": "keyword",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "access_token",
+                "displayName": "access_token",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          4032,
+          528
+        ],
+        "id": "29891609-d0ab-4ea8-b7ec-7144fa04f16f",
+        "name": "Tasks_Search_Tool"
+      },
+      {
+        "parameters": {
+          "description": "Description: Create a new task. Requires title. Optional: notes, due date.\nInput:\n\ntitle (string) - Prepend with verbs when confident: \"Pack Lunch\", \"Sign Document\", \"Return Library Books\"\nnotes (string, optional) \ndue (RFC 3339 format, e.g., 2025-12-05T00:00:00.000Z, optional)\n\nDue date rules:\n\nAll tasks need due dates\nTask relates to event with no due date = use event start time as due date\nDo not create tasks with due dates before today. If task is urgent, set due date as today.\nDue dates should end in 00:00:00.000Z (midnight UTC)\nLunch packing tasks: due 10pm night before the event\n\nScheduling deadlines rule:\nWhen you find a task that says something must be scheduled before date X, create TWO tasks:\n\nScheduling Task: \"Schedule [activity]\" - due date = halfway between today and X\nCompletion Task: \"Confirm [activity] completed\" - due date = X",
+          "workflowId": {
+            "cachedResultName": "ChungFamilyParents inbound message parser — Tasks_Create_MultiTenant",
+            "__rl": true,
+            "cachedResultUrl": "/workflow/KYl2xtkD9QvvVlki",
+            "mode": "list",
+            "value": "KYl2xtkD9QvvVlki"
+          },
+          "workflowInputs": {
+            "convertFieldsToString": false,
+            "matchingColumns": [],
+            "schema": [
+              {
+                "displayName": "title",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "title",
+                "type": "string",
+                "required": true,
+                "display": true
+              },
+              {
+                "displayName": "notes",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "notes",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "due",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "due",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "access_token",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "access_token",
+                "type": "string",
+                "required": false,
+                "display": true
+              }
+            ],
+            "mappingMode": "defineBelow",
+            "attemptToConvertTypes": false,
+            "value": {
+              "access_token": "={{ $('Merge Token').first().json.access_token }}",
+              "due": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('due', ``, 'string') }}",
+              "notes": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('notes', ``, 'string') }}",
+              "title": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('title', ``, 'string') }}"
+            }
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          4192,
+          528
+        ],
+        "id": "84f67da7-4540-4ba4-926c-2bec2c925ed3",
+        "name": "Tasks_Create_Tool"
+      },
+      {
+        "parameters": {
+          "description": "Description: Update an existing task. Requires task_id from search results. Only provided fields are changed.\nInput:\n\ntask_id (string from Tasks_Search results)\ntitle (string, optional)\nnotes (string, optional)\ndue (RFC 3339 format, optional)\n\nImportant: Do not make up task_id. All task_ids come from search results. If you get error \"Bad request - please check your parameters\" the id is not valid. If you get \"The resource you are requesting could not be found\" the task does not exist.",
+          "workflowId": {
+            "__rl": true,
+            "value": "ZUfsPr9rfugfAXeu",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/ZUfsPr9rfugfAXeu",
+            "cachedResultName": "ChungFamilyParents inbound message parser — Tasks_Update_MultiTenant"
+          },
+          "workflowInputs": {
+            "convertFieldsToString": false,
+            "matchingColumns": [],
+            "schema": [
+              {
+                "displayName": "task_id",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "task_id",
+                "type": "string",
+                "required": true,
+                "display": true
+              },
+              {
+                "displayName": "title",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "title",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "notes",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "notes",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "due",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "due",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "access_token",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "access_token",
+                "type": "string",
+                "required": false,
+                "display": true
+              }
+            ],
+            "mappingMode": "defineBelow",
+            "attemptToConvertTypes": false,
+            "value": {
+              "access_token": "={{ $('Merge Token').first().json.access_token }}",
+              "due": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('due', ``, 'string') }}",
+              "notes": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('notes', ``, 'string') }}",
+              "task_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('task_id', ``, 'string') }}",
+              "title": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('title', ``, 'string') }}"
+            }
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          4352,
+          528
+        ],
+        "id": "7f636aac-34d7-41d3-9fd1-2a6496745a39",
+        "name": "Tasks_Update_Tool"
+      },
+      {
+        "parameters": {
+          "description": "Description: Delete a task by its task_id. Requires a real task_id from search results.\nInput: task_id (string from search results)\nImportant: Do not make up task_id. All task_ids come from search results.",
+          "workflowId": {
+            "__rl": true,
+            "value": "ZidQALal7DjXlbyL",
+            "mode": "list"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "task_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('task_id', ``, 'string') }}",
+              "access_token": "={{ $('Merge Token').first().json.access_token }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "task_id",
+                "displayName": "task_id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "access_token",
+                "displayName": "access_token",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          4512,
+          528
+        ],
+        "id": "662fa292-f67e-4d12-a4f1-09237d204cb7",
+        "name": "Tasks_Delete_Tool"
+      },
+      {
+        "parameters": {
+          "description": "Description: Create a new calendar event. Requires summary (title), start and end times. Optional: description, location, rrule.\nInput:\n\nsummary (string) - Use descriptive titles like \"Smith Family Dinner\" not just \"Dinner\"\nstart (ISO 8601 with timezone, e.g., 2025-12-05T09:00:00-08:00)\nend (ISO 8601 with timezone, e.g., 2025-12-05T10:00:00-08:00)\ndescription (string, optional) - MUST end with: \"Email: [subject] | Link: https://mail.google.com/mail/u/0/#inbox/[email_id] | model D1\"\nlocation (string, optional)\nrrule (string, optional) - RFC 5545 recurrence rule WITHOUT the \"RRULE:\" prefix (e.g., \"FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10\")\n\nDate/Time rules:\n\nTimezone: America/Los_Angeles unless specified otherwise\nIf year not specified: use current year unless that makes date in the past, then use next year\nDo not create events with dates before today\nNo specific time mentioned = all-day event (use date only, not dateTime)\nNo end time mentioned = assume 1 hour duration + prepend \"END TIME NOT STATED\" to summary\nUse ISO 8601 extended format (e.g., 2025-08-07T09:00:00-07:00)\n\nDuration logic for events:\nIf email specifies duration (e.g., \"2 hour meeting\", \"30 min call\"):\n- Calculate end time = start time + duration\n- If duration >= 1 hour: add to summary\n- If duration < 1 hour: prepend \"[X min]\" to summary\n\nAll-day events:\n- For birthdays, holidays, vacations: use midnight to midnight format\n- start: YYYY-MM-DDT00:00:00-08:00\n- end: YYYY-MM-DDT00:00:00-08:00 (next day)\n\nOutput: Returns event_id and htmlLink on success.",
+          "workflowId": {
+            "__rl": true,
+            "value": "ITcwJzOedm5PCsom",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/ITcwJzOedm5PCsom",
+            "cachedResultName": "ChungFamilyParents inbound message parser — Calendar_Create_MultiTenant"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('summary', ``, 'string') }}",
+              "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('start', ``, 'string') }}",
+              "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('end', ``, 'string') }}",
+              "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('description', ``, 'string') }}",
+              "location": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('location', ``, 'string') }}",
+              "rrule": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('rrule', ``, 'string') }}",
+              "access_token": "={{ $('Merge Token').first().json.access_token }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "summary",
+                "displayName": "summary",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "start",
+                "displayName": "start",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "end",
+                "displayName": "end",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "description",
+                "displayName": "description",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "location",
+                "displayName": "location",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "rrule",
+                "displayName": "rrule",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "access_token",
+                "displayName": "access_token",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          4736,
+          256
+        ],
+        "id": "80108d7c-2b70-429e-b420-41b643ce1ecc",
+        "name": "Calendar_Create_Tool"
+      },
+      {
+        "parameters": {
+          "description": "Description: Mark a task as completed by its task_id. Use this when an email indicates a task has been done.\nInput: task_id (string from search results)\nImportant: Do not make up task_id. All task_ids come from search results.",
+          "workflowId": {
+            "__rl": true,
+            "value": "ndXk87L0DVMB4Y77",
+            "mode": "list"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "task_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('task_id', ``, 'string') }}",
+              "access_token": "={{ $('Merge Token').first().json.access_token }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "task_id",
+                "displayName": "task_id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "access_token",
+                "displayName": "access_token",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          4992,
+          512
+        ],
+        "id": "bcf2b871-5a3f-4b5e-82e6-f95502e10a18",
+        "name": "Tasks_Complete_Tool"
+      },
+      {
+        "parameters": {
+          "description": "Description: Delete a calendar event by its event_id. When an event is deleted the response will be \"success: true\". If you try to delete an event with an event_id that does not exist, you will get an error message \"The resource you are requesting could not be found\".\nInput: event_id (string from search results)\nImportant: Do not make up event_id. All event_ids come from search results.",
+          "workflowId": {
+            "__rl": true,
+            "value": "4EDuF5s0hKhyFmiE",
+            "mode": "list"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "event_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('event_id', ``, 'string') }}",
+              "access_token": "={{ $('Merge Token').first().json.access_token }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "event_id",
+                "displayName": "event_id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "access_token",
+                "displayName": "access_token",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          5104,
+          256
+        ],
+        "id": "b66b03b3-95d1-4670-858b-06c621c4b7b8",
+        "name": "Calendar_Delete_Tool"
+      },
+      {
+        "parameters": {
+          "description": "Description: Update an existing calendar event. Requires event_id from search results. Only provided fields are changed.\nInput:\n\nevent_id (string from Calendar_Search or Calendar_By_Date results)\nsummary (string, optional)\nstart (ISO 8601 with timezone, optional)\nend (ISO 8601 with timezone, optional)\ndescription (string, optional)\nlocation (string, optional)\nrrule (string, optional) - RFC 5545 recurrence rule WITHOUT the \"RRULE:\" prefix (e.g., \"FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10\")\n\nImportant: Do not make up event_id. All event_ids come from search results.",
+          "workflowId": {
+            "__rl": true,
+            "value": "WBRw3JHDEvofddy6",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/WBRw3JHDEvofddy6",
+            "cachedResultName": "ChungFamilyParents inbound message parser — Calendar_Update_MultiTenant"
+          },
+          "workflowInputs": {
+            "convertFieldsToString": false,
+            "matchingColumns": [],
+            "schema": [
+              {
+                "displayName": "event_id",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "event_id",
+                "type": "string",
+                "required": true,
+                "display": true
+              },
+              {
+                "displayName": "summary",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "summary",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "start",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "start",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "end",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "end",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "description",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "description",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "location",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "location",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "rrule",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "rrule",
+                "type": "string",
+                "required": false,
+                "display": true
+              },
+              {
+                "displayName": "access_token",
+                "defaultMatch": false,
+                "removed": false,
+                "canBeUsedToMatch": true,
+                "id": "access_token",
+                "type": "string",
+                "required": false,
+                "display": true
+              }
+            ],
+            "mappingMode": "defineBelow",
+            "attemptToConvertTypes": false,
+            "value": {
+              "access_token": "={{ $('Merge Token').first().json.access_token }}",
+              "location": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('location', ``, 'string') }}",
+              "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('description', ``, 'string') }}",
+              "rrule": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('rrule', ``, 'string') }}",
+              "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('end', ``, 'string') }}",
+              "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('start', ``, 'string') }}",
+              "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('summary', ``, 'string') }}",
+              "event_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('event_id', ``, 'string') }}"
+            }
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          4912,
+          256
+        ],
+        "id": "7a0f4087-1939-4fb0-8d1d-0e5d98ea0cff",
+        "name": "Calendar_Update_Tool"
+      },
+      {
+        "parameters": {
+          "jsCode": "const stage1Output = $('AI Agent - Stage 1 Analysis').item.json;\nconst mergeTokenData = $('Merge Token').item.json;\n\n// Extract access_token from Stage 1 output if it's there, otherwise use Merge Token\nlet accessToken = mergeTokenData.access_token;\n\n// Try to extract token from Stage 1 output (if AI included it)\nif (stage1Output.output && stage1Output.output.includes('ACCESS_TOKEN:')) {\n  const tokenMatch = stage1Output.output.match(/ACCESS_TOKEN:\\s*([^\\s]+)/);\n  if (tokenMatch) {\n    accessToken = tokenMatch[1];\n  }\n}\n\nreturn [{\n  json: {\n    ...mergeTokenData,\n    access_token: accessToken,\n    stage1_analysis: stage1Output.output\n  }\n}];"
+        },
+        "id": "0ae58d5d-9c40-4bde-b9d7-d3eea52b4493",
+        "name": "Prepare Stage 2 Input",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4400,
+          -32
+        ]
+      },
+      {
+        "parameters": {
+          "description": "Description: Search events in Google Calendar using a query. Use only 1-2 words per query. Do not include dates in the query - use Calendar_By_Date for date-based searches. The response may include some empty fields.\nInput: query (string, 1-2 words only)\nExample inputs: \"soccer\", \"dinner\", \"meeting\", \"appointment\", \"birthday\"\nResponse notes: Results include event id (use this for updates/deletes), summary, start, end, description, location.",
+          "workflowId": {
+            "__rl": true,
+            "value": "kQJv5Vc1xBBqBaXG",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/kQJv5Vc1xBBqBaXG",
+            "cachedResultName": "ChungFamilyParents inbound message parser — Calendar_Search_MultiTenant"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+              "access_token": "={{ $('Merge Token').first().json.access_token }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "query",
+                "displayName": "query",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "access_token",
+                "displayName": "access_token",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          3728,
+          368
+        ],
+        "id": "881d6a17-f4f3-423a-8ef2-e909aebad99c",
+        "name": "Calendar_Search _Tool"
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "2598b702-cbfe-4090-9cac-481a6135190c",
+        "name": "Process One Email",
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          2800,
+          -32
+        ]
+      }
+    ],
+    "connections": {
+      "Every 5 Minutes (offset)": {
+        "main": [
+          [
+            {
+              "node": "Get Unprocessed Emails",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Unprocessed Emails": {
+        "main": [
+          [
+            {
+              "node": "Process One Email",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Family Facts": {
+        "main": [
+          [
+            {
+              "node": "Prepare Email + Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Email + Context": {
+        "main": [
+          [
+            {
+              "node": "Get Token from Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Token from Supabase": {
+        "main": [
+          [
+            {
+              "node": "Merge Token",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Token": {
+        "main": [
+          [
+            {
+              "node": "AI Agent - Stage 1 Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent - Stage 1 Analysis": {
+        "main": [
+          [
+            {
+              "node": "Prepare Stage 2 Input",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent - Stage 2 Actions": {
+        "main": [
+          [
+            {
+              "node": "Prepare Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Model Stage 1": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent - Stage 1 Analysis",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Model Stage 2": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Result": {
+        "main": [
+          [
+            {
+              "node": "Mark Completed",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mark Completed": {
+        "main": [
+          [
+            {
+              "node": "Process One Email",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calendar_By_Date_Tool'": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 1 Analysis",
+              "type": "ai_tool",
+              "index": 0
+            },
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tasks_Search_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 1 Analysis",
+              "type": "ai_tool",
+              "index": 0
+            },
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tasks_Create_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tasks_Update_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tasks_Delete_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calendar_Create_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tasks_Complete_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calendar_Delete_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calendar_Update_Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Stage 2 Input": {
+        "main": [
+          [
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calendar_Search _Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent - Stage 1 Analysis",
+              "type": "ai_tool",
+              "index": 0
+            },
+            {
+              "node": "AI Agent - Stage 2 Actions",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process One Email": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Get Family Facts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "timeSavedMode": "fixed",
+      "errorWorkflow": "fyNaHTZY8javrwU5"
+    },
+    "staticData": {
+      "node:Every 5 Minutes (offset)": {
+        "recurrenceRules": []
+      }
+    },
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "pinData": {},
+    "versionId": "8ca8f3e3-9912-4585-aad2-3d10c71e1fa7",
+    "activeVersionId": null,
+    "versionCounter": 360,
+    "triggerCount": 1,
+    "shared": [
+      {
+        "updatedAt": "2026-01-24T02:03:21.586Z",
+        "createdAt": "2026-01-24T02:03:21.586Z",
+        "role": "workflow:owner",
+        "workflowId": "0bpIplwjOJJQFWxr",
+        "projectId": "kvPchBqTqBoD9S7f",
+        "project": {
+          "updatedAt": "2025-08-14T19:31:26.000Z",
+          "createdAt": "2025-07-30T17:31:40.740Z",
+          "id": "kvPchBqTqBoD9S7f",
+          "name": "ChungFamilyParents inbound message parser",
+          "type": "team",
+          "icon": {
+            "type": "icon",
+            "value": "layers"
+          },
+          "description": "Helps family make sure that they don't drop the ball on todos or events for the kids when sent in via some message.",
+          "creatorId": null,
+          "projectRelations": [
+            {
+              "updatedAt": "2025-08-14T19:31:26.958Z",
+              "createdAt": "2025-08-14T19:31:26.958Z",
+              "userId": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a",
+              "projectId": "kvPchBqTqBoD9S7f",
+              "user": {
+                "updatedAt": "2026-01-26T08:08:03.000Z",
+                "createdAt": "2025-07-29T23:07:39.928Z",
+                "id": "f11eb2cb-1df4-4679-ac05-38d806ba9f5a",
+                "email": "hanschung@gmail.com",
+                "firstName": "Hans",
+                "lastName": "Chung",
+                "personalizationAnswers": null,
+                "settings": {
+                  "userActivated": false,
+                  "easyAIWorkflowOnboarded": true
+                },
+                "disabled": false,
+                "mfaEnabled": false,
+                "lastActiveAt": "2026-01-26",
+                "isPending": false
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "tags": [],
+    "activeVersion": null
+  }
+}
