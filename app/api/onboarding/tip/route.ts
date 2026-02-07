@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * API endpoint to fetch a random onboarding tip/message
  * 

@@ -149,6 +149,12 @@ export async function GET(request: NextRequest) {
       return response
     }
 
+    // At this point, user must exist (either found or created)
+    if (!user) {
+      console.error('❌ User is null after creation logic - this should not happen')
+      return NextResponse.redirect(new URL('/?error=user_creation_failed', appUrl))
+    }
+
     // --- 5. SYNC TO PUBLIC.USERS TABLE (User Request) ---
     console.log('💾 Syncing to public.users table...')
     const { error: publicProfileError } = await supabaseAdmin

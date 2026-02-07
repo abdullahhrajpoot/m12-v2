@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Sparkles, MessageSquare, Send, ThumbsUp, Clock, Mail } from 'lucide-react'
 import { toast } from 'sonner'
@@ -374,7 +374,7 @@ const SuccessState = () => (
   </div>
 )
 
-export default function WhatWeFound() {
+function WhatWeFoundContent() {
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -854,5 +854,18 @@ export default function WhatWeFound() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function WhatWeFound() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    }>
+      <WhatWeFoundContent />
+    </Suspense>
   )
 }
