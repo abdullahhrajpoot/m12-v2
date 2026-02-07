@@ -298,7 +298,7 @@ const CalendarMockup = () => (
                 Sign Permission Slip
               </div>
               <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wide flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Auto-added from Newsletter
+                <Sparkles className="w-3 h-3" /> Auto-added from Newsletters while nothing
               </div>
             </div>
           </div>
@@ -307,7 +307,7 @@ const CalendarMockup = () => (
 
       <div className="flex gap-3 h-12">
         <div className="w-12 text-xs text-slate-400 text-right pt-2 font-medium">
-          1:00 PM
+          1:00 am
         </div>
         <div className="flex-1 border-t border-slate-200 border-dashed mt-4"></div>
       </div>
