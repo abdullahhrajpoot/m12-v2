@@ -314,7 +314,7 @@ const CalendarMockup = () => (
 
       <div className="flex gap-3">
         <div className="w-12 text-xs text-slate-400 text-right pt-2 font-medium">
-          3:30 PM
+          3:30 AM
         </div>
         <div className="flex-1">
           <div className="bg-purple-100 border-l-4 border-purple-500 p-2.5 rounded-r-lg text-sm relative overflow-hidden shadow-sm">
