@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Sparkles, MessageSquare, Send, ThumbsUp, Clock, Mail } from 'lucide-react'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
@@ -14,9 +14,9 @@ const Header = () => (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
       <div className="flex items-center">
         <div className="flex items-center gap-2">
-          <img 
-            src="/logo.png" 
-            alt="bippity.boo" 
+          <img
+            src="/logo.png"
+            alt="bippity.boo"
             className="w-auto h-[100px] object-contain"
           />
           <span className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">bippity.boo</span>
@@ -41,89 +41,137 @@ const LoadingState = ({ progress, elapsed, tip }: LoadingStateProps) => {
     { threshold: 90, label: "Finishing up...", icon: "🎯" }
   ]
 
-  const currentStage = stages.reduce((acc, stage) => 
+  const currentStage = stages.reduce((acc, stage) =>
     progress >= stage.threshold ? stage : acc
-  , stages[0])
+    , stages[0])
 
   return (
     <div className="min-h-screen bg-slate-50">
       <Header />
       <div className="py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-10"
-        >
-          <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
-            <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">Getting to know your family...</h1>
-          <p className="text-lg text-slate-600 max-w-lg mx-auto">
-            I'm scanning your recent emails to learn about your kids' schools, activities, and schedules. This can take up to 3 minutes.
-          </p>
-          <p className="text-sm text-slate-400 mt-4 max-w-md mx-auto">
-            This is just a first pass — I won't catch everything, and I might get some things wrong. You'll be able to correct me next.
-          </p>
-        </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100"
-        >
-          {/* Progress Bar */}
-          <div className="mb-8">
-            <Progress value={progress} className="h-2 mb-3" />
-            <div className="flex justify-between text-sm text-slate-500">
-              <span>{Math.round(progress)}%</span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {elapsed}s elapsed
-              </span>
-            </div>
-          </div>
-
-          {/* Current Stage */}
+        <div className="max-w-2xl mx-auto">
           <motion.div
-            key={currentStage.label}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="flex items-center gap-4 p-6 bg-slate-50 rounded-xl"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-10"
           >
-            <div className="text-4xl animate-bounce">{currentStage.icon}</div>
-            <div>
-              <div className="font-semibold text-slate-900 mb-1">{currentStage.label}</div>
-              <div className="text-sm text-slate-500">
-                Hang tight, we're processing your emails...
-              </div>
+            <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
+              <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
             </div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-3">Getting to know your family...</h1>
+            <p className="text-lg text-slate-600 max-w-lg mx-auto">
+              I'm scanning your recent emails to learn about your kids' schools, activities, and schedules. This can take up to 3 minutes.
+            </p>
+            <p className="text-sm text-slate-400 mt-4 max-w-md mx-auto">
+              This is just a first pass — I won't catch everything, and I might get some things wrong. You'll be able to correct me next.
+            </p>
           </motion.div>
 
-          {/* Tip/Message */}
-          {tip && (
-            <div className="mt-8 p-6 bg-indigo-50 rounded-xl border border-indigo-100">
-              <div className="flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
-                <div className="text-sm text-indigo-900">
-                  {tip}
-                </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100"
+          >
+            {/* Progress Bar */}
+            <div className="mb-8">
+              <Progress value={progress} className="h-2 mb-3" />
+              <div className="flex justify-between text-sm text-slate-500">
+                <span>{Math.round(progress)}%</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {elapsed}s elapsed
+                </span>
               </div>
             </div>
-          )}
-        </motion.div>
-      </div>
+
+            {/* Current Stage */}
+            <motion.div
+              key={currentStage.label}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="flex items-center gap-4 p-6 bg-slate-50 rounded-xl"
+            >
+              <div className="text-4xl animate-bounce">{currentStage.icon}</div>
+              <div>
+                <div className="font-semibold text-slate-900 mb-1">{currentStage.label}</div>
+                <div className="text-sm text-slate-500">
+                  Hang tight, we're processing your emails...
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Tip/Message */}
+            {tip && (
+              <div className="mt-8 p-6 bg-indigo-50 rounded-xl border border-indigo-100">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+                  <div className="text-sm text-indigo-900">
+                    {tip}
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </div>
       </div>
     </div>
   )
 }
 
-// Helper function to group and sort facts by first word
+// Manual Email Verification Modal
+const EmailVerificationModal = ({ onSubmit, isSubmitting }: { onSubmit: (email: string) => void, isSubmitting: boolean }) => {
+  const [email, setEmail] = useState('')
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 bg-yellow-100 rounded-full">
+            <Mail className="w-6 h-6 text-yellow-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-slate-900">Verify Email Address</h2>
+        </div>
+
+        <p className="text-slate-600 mb-6">
+          We successfully connected your Google Account, but we couldn't automatically verify your email address.
+          Please enter it manually to continue.
+        </p>
+
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(email); }} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full bg-indigo-600 hover:bg-indigo-700"
+            disabled={!email || isSubmitting}
+          >
+            {isSubmitting ? 'Verifying...' : 'Confirm Email'}
+          </Button>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 function groupFactsByFirstWord(facts: string[]): { word: string; facts: string[] }[] {
   const groups: Record<string, string[]> = {}
-  
+
   facts.forEach(fact => {
     const firstWord = fact.trim().split(/\s+/)[0] || 'Other'
     if (!groups[firstWord]) {
@@ -131,8 +179,7 @@ function groupFactsByFirstWord(facts: string[]): { word: string; facts: string[]
     }
     groups[firstWord].push(fact)
   })
-  
-  // Sort by count (most common first), then alphabetically for ties
+
   return Object.entries(groups)
     .sort((a, b) => {
       const countDiff = b[1].length - a[1].length
@@ -148,7 +195,7 @@ interface FactCardProps {
 }
 
 const FactCard = ({ fact, index }: FactCardProps) => (
-  <motion.div 
+  <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: index * 0.05 }}
@@ -159,7 +206,6 @@ const FactCard = ({ fact, index }: FactCardProps) => (
   </motion.div>
 )
 
-// Timeout state component for when no facts are found
 interface TimeoutStateProps {
   onSubmit: (text: string) => Promise<void>
   submitting: boolean
@@ -172,55 +218,54 @@ const TimeoutState = ({ onSubmit, submitting }: TimeoutStateProps) => {
     <div className="min-h-screen bg-slate-50">
       <Header />
       <div className="py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-10"
-        >
-          <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
-            <Mail className="w-6 h-6 text-slate-400" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">I didn't find much yet</h1>
-          <p className="text-lg text-slate-600 max-w-lg mx-auto">
-            Your inbox didn't have many clues about your kids' schedules — maybe you're new to these activities, or the emails haven't started yet. No problem! Just tell me a bit about your family and I'll take it from there.
-          </p>
-        </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <MessageSquare className="w-5 h-5 text-slate-400" />
-            <h3 className="font-bold text-slate-900">Who are your kids, and what are they up to these days?</h3>
-          </div>
-          
-          <Textarea 
-            placeholder="e.g., I have two kids - Emma (8) does soccer on Saturdays and piano on Tuesdays. Jake (5) just started kindergarten at Lincoln Elementary..."
-            className="min-h-[200px] mb-6 resize-none bg-slate-50 border-slate-200 focus:bg-white transition-colors"
-            value={familyInfo}
-            onChange={(e) => setFamilyInfo(e.target.value)}
-          />
-
-          <Button 
-            onClick={() => onSubmit(familyInfo)}
-            disabled={submitting || !familyInfo.trim()}
-            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium"
+        <div className="max-w-2xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-10"
           >
-            <Send className="w-4 h-4 mr-2" />
-            {submitting ? "Saving..." : "Tell Me About Your Family"}
-          </Button>
-        </motion.div>
-      </div>
+            <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
+              <Mail className="w-6 h-6 text-slate-400" />
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-3">I didn't find much yet</h1>
+            <p className="text-lg text-slate-600 max-w-lg mx-auto">
+              Your inbox didn't have many clues about your kids' schedules — maybe you're new to these activities, or the emails haven't started yet. No problem! Just tell me a bit about your family and I'll take it from there.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <MessageSquare className="w-5 h-5 text-slate-400" />
+              <h3 className="font-bold text-slate-900">Who are your kids, and what are they up to these days?</h3>
+            </div>
+
+            <Textarea
+              placeholder="e.g., I have two kids - Emma (8) does soccer on Saturdays and piano on Tuesdays. Jake (5) just started kindergarten at Lincoln Elementary..."
+              className="min-h-[200px] mb-6 resize-none bg-slate-50 border-slate-200 focus:bg-white transition-colors"
+              value={familyInfo}
+              onChange={(e) => setFamilyInfo(e.target.value)}
+            />
+
+            <Button
+              onClick={() => onSubmit(familyInfo)}
+              disabled={submitting || !familyInfo.trim()}
+              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              {submitting ? "Saving..." : "Tell Me About Your Family"}
+            </Button>
+          </motion.div>
+        </div>
       </div>
     </div>
   )
 }
 
-// Success state after submission
 const SavingState = ({ facts }: { facts: string[] }) => {
   const emailBody = encodeURIComponent(
     `Hi,\n\nI tried to submit my onboarding facts but the system timed out. Here are my facts:\n\n${facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\nPlease save these for me.\n\nThanks!`
@@ -231,7 +276,7 @@ const SavingState = ({ facts }: { facts: string[] }) => {
     <div className="min-h-screen bg-slate-50">
       <Header />
       <div className="py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center min-h-[calc(100vh-120px)]">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-lg bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center"
@@ -276,7 +321,7 @@ const TimeoutEmailState = ({ facts }: { facts: string[] }) => {
     <div className="min-h-screen bg-slate-50">
       <Header />
       <div className="py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center min-h-[calc(100vh-120px)]">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-lg bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center"
@@ -308,23 +353,23 @@ const SuccessState = () => (
   <div className="min-h-screen bg-slate-50">
     <Header />
     <div className="py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center min-h-[calc(100vh-120px)]">
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="max-w-lg bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center"
-    >
-      <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-        <Check className="w-8 h-8 text-emerald-600" />
-      </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-4">Got it — I'll remember that.</h2>
-      <p className="text-slate-600 leading-relaxed">
-        Feel free to email me at{' '}
-        <a href="mailto:fgm@bippity.boo" className="text-indigo-600 hover:text-indigo-700 font-medium">
-          fgm@bippity.boo
-        </a>
-        {' '}when any facts change or if you want to correct or adjust how I handle things.
-      </p>
-    </motion.div>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-lg bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center"
+      >
+        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Check className="w-8 h-8 text-emerald-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-4">Got it — I'll remember that.</h2>
+        <p className="text-slate-600 leading-relaxed">
+          Feel free to email me at{' '}
+          <a href="mailto:fgm@bippity.boo" className="text-indigo-600 hover:text-indigo-700 font-medium">
+            fgm@bippity.boo
+          </a>
+          {' '}when any facts change or if you want to correct or adjust how I handle things.
+        </p>
+      </motion.div>
     </div>
   </div>
 )
@@ -343,17 +388,58 @@ export default function WhatWeFound() {
   const [saving, setSaving] = useState(false)
   const [saveTimedOut, setSaveTimedOut] = useState(false)
   const [checkingAccount, setCheckingAccount] = useState(false)
+  // New States for Manual Link
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [isLinking, setIsLinking] = useState(false)
+
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const EXPECTED_DURATION = 180 // 3 minutes maximum wait time
 
+  // Check for missing_email manual fallback
+  useEffect(() => {
+    if (searchParams.get('missing_email') === 'true') {
+      setShowEmailModal(true)
+    }
+  }, [searchParams])
+
+  const handleManualLink = async (email: string) => {
+    // Get session from URL or Params
+    const sessionId = searchParams.get('session_id') || searchParams.get('session')
+    if (!sessionId) return
+
+    setIsLinking(true)
+    try {
+      const res = await fetch('/api/auth/unipile/manual-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, sessionId })
+      })
+
+      if (!res.ok) throw new Error('Failed to link')
+
+      toast.success('Email verified successfully!')
+      setShowEmailModal(false)
+      // Remove missing_email param and reload to restart polling
+      window.location.href = `/whatwefound?session=${sessionId}`
+
+    } catch (e) {
+      toast.error('Failed to verify email. Please try again.')
+    } finally {
+      setIsLinking(false)
+    }
+  }
+
   // Check for pending Unipile account creation
   useEffect(() => {
+    if (showEmailModal) return // Don't poll while waiting for user input
+
     const checkAccountStatus = async () => {
       // Get session_id from URL params or cookie
       const urlParams = new URLSearchParams(window.location.search)
       const sessionId = urlParams.get('session')
-      
+
       if (!sessionId) {
         // No pending session, proceed with normal flow
         return
@@ -380,10 +466,10 @@ export default function WhatWeFound() {
             // Account found! The callback route should have already handled user creation
             setCheckingAccount(false)
             clearInterval(pollInterval)
-            
+
             // Account is ready, continue with normal onboarding flow
             console.log('✅ Unipile account created:', data.account_id)
-            
+
             // Store session_id in localStorage so onboarding summary can use it
             if (typeof window !== 'undefined') {
               window.localStorage.setItem('unipile_session_id', sessionId)
@@ -413,7 +499,7 @@ export default function WhatWeFound() {
     }
 
     checkAccountStatus()
-  }, [])
+  }, [showEmailModal])
 
   // Fetch random tip on mount
   useEffect(() => {
@@ -433,8 +519,8 @@ export default function WhatWeFound() {
   }, [])
 
   useEffect(() => {
-    // Don't start onboarding polling if we're still checking account status
-    if (checkingAccount) {
+    // Don't start Onboarding polling if we're still checking account status OR waiting for manual email
+    if (checkingAccount || showEmailModal) {
       return
     }
 
@@ -465,21 +551,21 @@ export default function WhatWeFound() {
     // Poll for results
     const checkForResults = async () => {
       if (hasLoadedFacts) return // Stop polling if we've already loaded facts
-      
+
       try {
         // Get session_id from URL or localStorage for fallback auth
         const urlParams = new URLSearchParams(window.location.search)
-        const sessionId = urlParams.get('session') || 
-                         (typeof window !== 'undefined' ? window.localStorage.getItem('unipile_session_id') : null)
-        
+        const sessionId = urlParams.get('session') ||
+          (typeof window !== 'undefined' ? window.localStorage.getItem('unipile_session_id') : null)
+
         // Include session_id in request if available (for users without session cookie)
-        const url = sessionId 
+        const url = sessionId
           ? `/api/onboarding/summary?session_id=${sessionId}`
           : '/api/onboarding/summary'
-        
+
         const response = await fetch(url)
         const data = await response.json()
-        
+
         if (response.ok) {
           // Check if we have summary sentences
           if (data.summary_sentences && Array.isArray(data.summary_sentences) && data.summary_sentences.length > 0) {
@@ -487,7 +573,7 @@ export default function WhatWeFound() {
             setFacts(data.summary_sentences)
             setProgress(100)
             setLoading(false)
-            
+
             clearInterval(progressInterval)
             clearInterval(elapsedInterval)
             clearInterval(checkInterval)
@@ -534,7 +620,7 @@ export default function WhatWeFound() {
       clearInterval(checkInterval)
       clearTimeout(timeout)
     }
-  }, [checkingAccount]) // Re-run if checkingAccount changes
+  }, [checkingAccount, showEmailModal]) // Re-run if checkingAccount or showEmailModal changes
 
   const handleSubmit = async (isAllGood = false) => {
     // Validate facts array before submitting
@@ -546,7 +632,7 @@ export default function WhatWeFound() {
     setSubmitting(true)
     setSaving(true)
     setSaveTimedOut(false)
-    
+
     try {
       // Call API endpoint to finalize onboarding - waits up to 60 seconds for confirmation
       const response = await fetch('/api/onboarding/finalize', {
@@ -572,7 +658,7 @@ export default function WhatWeFound() {
           })
           return
         }
-        
+
         console.error('Finalize API error:', response.status, result)
         throw new Error(result.error || `Failed to process facts (${response.status})`)
       }
@@ -619,6 +705,11 @@ export default function WhatWeFound() {
     }
   }
 
+  // Early Return for Manual Email Verification Modal
+  if (showEmailModal) {
+    return <EmailVerificationModal onSubmit={handleManualLink} isSubmitting={isLinking} />
+  }
+
   // Show success state after submission
   if (saveTimedOut) {
     return <TimeoutEmailState facts={facts} />
@@ -646,16 +737,16 @@ export default function WhatWeFound() {
       <div className="min-h-screen bg-slate-50">
         <Header />
         <div className="py-12 px-4 flex items-center justify-center">
-        <div className="max-w-md bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
-          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">⚠️</span>
+          <div className="max-w-md bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Something went wrong</h2>
+            <p className="text-slate-600 mb-6">{error}</p>
+            <Button onClick={() => window.location.reload()} className="w-full">
+              Try Again
+            </Button>
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Something went wrong</h2>
-          <p className="text-slate-600 mb-6">{error}</p>
-          <Button onClick={() => window.location.reload()} className="w-full">
-            Try Again
-          </Button>
-        </div>
         </div>
       </div>
     )
@@ -668,99 +759,99 @@ export default function WhatWeFound() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       <div className="py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-10"
-        >
-          <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
-            <Sparkles className="w-6 h-6 text-indigo-500" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">Here's what I found so far</h1>
-          <p className="text-lg text-slate-600 max-w-lg mx-auto">
-            Based on your emails, here's my best guess about your family. Some of this might be wrong or incomplete — that's normal! Help me learn by confirming what's right and filling in what I missed.
-          </p>
-        </motion.div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-8">
-          
-          <div className="space-y-4">
-            {groupedFacts.map((group, groupIndex) => (
-              <motion.div 
-                key={group.word}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: groupIndex * 0.1 }}
-                className="p-4 bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition-colors"
-              >
-                {groupedFacts.length > 1 && (
-                  <div className="text-xs font-medium text-indigo-500 uppercase tracking-wider mb-3">
-                    {group.word}
-                  </div>
-                )}
-                <ul className="space-y-2">
-                  {group.facts.map((fact, factIndex) => (
-                    <li key={`${groupIndex}-${factIndex}`} className="flex items-start gap-2">
-                      <div className="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                      <span className="text-slate-900 leading-relaxed">{fact}</span>
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <MessageSquare className="w-5 h-5 text-slate-400" />
-            <h3 className="font-bold text-slate-900">Anything we missed or got wrong?</h3>
-          </div>
-          <p className="text-sm text-slate-500 mb-4">
-            Just tell me what's off — or what I missed entirely. Plain English is fine.
-          </p>
-          
-          <Textarea 
-            placeholder="Actually, Cora does gymnastics on Thursdays, not Tuesdays..."
-            className="min-h-[120px] mb-6 resize-none bg-slate-50 border-slate-200 focus:bg-white transition-colors"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-
-          <Button 
-            onClick={() => handleSubmit(comment.trim().length === 0)}
-            disabled={submitting || saving}
-            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium disabled:opacity-70"
+        <div className="max-w-2xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-10"
           >
-            {saving ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                Saving... Please wait
-              </>
-            ) : comment.trim() ? (
-              <>
-                <Send className="w-4 h-4 mr-2" />
-                Submit Edits
-              </>
-            ) : (
-              <>
-                <ThumbsUp className="w-4 h-4 mr-2" />
-                Looks Good!
-              </>
-            )}
-          </Button>
-        </motion.div>
+            <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-sm mb-6 border border-slate-100">
+              <Sparkles className="w-6 h-6 text-indigo-500" />
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-3">Here's what I found so far</h1>
+            <p className="text-lg text-slate-600 max-w-lg mx-auto">
+              Based on your emails, here's my best guess about your family. Some of this might be wrong or incomplete — that's normal! Help me learn by confirming what's right and filling in what I missed.
+            </p>
+          </motion.div>
 
-        <p className="text-center text-sm text-slate-400 mt-8">
-          You can always email me at <a href="mailto:fgm@bippity.boo" className="text-indigo-500 hover:text-indigo-600">fgm@bippity.boo</a> to update this later.
-        </p>
-      </div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-8">
+
+            <div className="space-y-4">
+              {groupedFacts.map((group, groupIndex) => (
+                <motion.div
+                  key={group.word}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: groupIndex * 0.1 }}
+                  className="p-4 bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition-colors"
+                >
+                  {groupedFacts.length > 1 && (
+                    <div className="text-xs font-medium text-indigo-500 uppercase tracking-wider mb-3">
+                      {group.word}
+                    </div>
+                  )}
+                  <ul className="space-y-2">
+                    {group.facts.map((fact, factIndex) => (
+                      <li key={`${groupIndex}-${factIndex}`} className="flex items-start gap-2">
+                        <div className="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                        <span className="text-slate-900 leading-relaxed">{fact}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquare className="w-5 h-5 text-slate-400" />
+              <h3 className="font-bold text-slate-900">Anything we missed or got wrong?</h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">
+              Just tell me what's off — or what I missed entirely. Plain English is fine.
+            </p>
+
+            <Textarea
+              placeholder="Actually, Cora does gymnastics on Thursdays, not Tuesdays..."
+              className="min-h-[120px] mb-6 resize-none bg-slate-50 border-slate-200 focus:bg-white transition-colors"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+
+            <Button
+              onClick={() => handleSubmit(comment.trim().length === 0)}
+              disabled={submitting || saving}
+              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-medium disabled:opacity-70"
+            >
+              {saving ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                  Saving... Please wait
+                </>
+              ) : comment.trim() ? (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Submit Edits
+                </>
+              ) : (
+                <>
+                  <ThumbsUp className="w-4 h-4 mr-2" />
+                  Looks Good!
+                </>
+              )}
+            </Button>
+          </motion.div>
+
+          <p className="text-center text-sm text-slate-400 mt-8">
+            You can always email me at <a href="mailto:fgm@bippity.boo" className="text-indigo-500 hover:text-indigo-600">fgm@bippity.boo</a> to update this later.
+          </p>
+        </div>
       </div>
     </div>
   )

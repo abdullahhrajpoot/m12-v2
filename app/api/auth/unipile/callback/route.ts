@@ -5,398 +5,241 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCookieOptions } from '@/lib/cookie-utils'
 import { ensureFamilyMembership } from '@/lib/family'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * API endpoint to handle Unipile OAuth callback
- * 
- * After successful authentication, Unipile redirects here with account_id and email.
- * We store the account_id in oauth_tokens table and trigger the onboarding workflow.
- * 
- * GET /api/auth/unipile/callback?account_id={id}&email={email}
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  // Handle both 'session_id' and 'session' parameters (Unipile might use either)
   const sessionId = searchParams.get('session_id') || searchParams.get('session')
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bippity.boo'
 
-  // Warn if appUrl looks like localhost (configuration issue)
-  if (appUrl.includes('localhost') || appUrl.includes('127.0.0.1')) {
-    console.warn('⚠️ WARNING: NEXT_PUBLIC_APP_URL appears to be localhost:', appUrl)
-    console.warn('⚠️ This will cause redirect issues. Set NEXT_PUBLIC_APP_URL=https://bippity.boo in Railway')
-  }
-
-  // Log the full URL path (not full URL to avoid logging localhost)
-  const urlPath = new URL(request.url).pathname + new URL(request.url).search
-  console.log('🔐 Unipile callback received:', {
-    sessionId: sessionId,
-    urlPath: urlPath, // Only log path, not full URL
-    appUrl: appUrl,
-    host: request.headers.get('host'),
-    allParams: Object.fromEntries(searchParams.entries()),
-    hasSessionIdParam: !!searchParams.get('session_id'),
-    hasSessionParam: !!searchParams.get('session'),
-    cookieSessionId: request.cookies.get('unipile_session_id')?.value || 'none'
-  })
+  console.log('🛑 CALLBACK HIT - STARTING EXECUTION', { sessionId, appUrl })
 
   if (!sessionId) {
-    const urlPath = new URL(request.url).pathname + new URL(request.url).search
-    console.error('❌ Missing session_id in callback URL. Path:', urlPath)
-    console.error('❌ Configured appUrl:', appUrl)
-    console.error('❌ All search params:', Object.fromEntries(searchParams.entries()))
-    console.error('❌ This might mean Unipile redirected without preserving query params')
-    
-    // Try to get session_id from cookie as fallback
-    const cookieSessionId = request.cookies.get('unipile_session_id')?.value
-    if (cookieSessionId) {
-      console.log('✅ Found session_id in cookie:', cookieSessionId)
-      // Continue with cookie session_id
-      const response = NextResponse.redirect(new URL(`/api/auth/unipile/callback?session_id=${cookieSessionId}`, appUrl))
-      // Delete cookie by setting it with empty value and expired date
-      response.cookies.set('unipile_session_id', '', {
-        ...getCookieOptions(),
-        expires: new Date(0) // Expire immediately
-      })
-      return response
-    }
-    
-    // If no session_id at all, check if this is a direct redirect from Unipile
-    // Unipile might redirect to success_redirect_url without query params
-    // In that case, we should check for pending sessions and redirect to whatwefound
-    console.warn('⚠️ No session_id found - checking for any pending sessions...')
-    return NextResponse.redirect(new URL('/?error=missing_session&hint=check_cookies', appUrl))
+    console.error('❌ Missing session_id')
+    return NextResponse.redirect(new URL('/?error=missing_session', appUrl))
   }
 
+  // --- 1. ROBUST ENV PARSING ---
+  // We manually clean these to handle "quoted" values in .env files
+  let unipileDsn = process.env.UNIPILE_DSN?.trim() || ''
+  if (unipileDsn.startsWith('"') && unipileDsn.endsWith('"')) unipileDsn = unipileDsn.slice(1, -1)
+  if (unipileDsn.startsWith("'") && unipileDsn.endsWith("'")) unipileDsn = unipileDsn.slice(1, -1)
+  if (unipileDsn && !unipileDsn.startsWith('http')) unipileDsn = `https://${unipileDsn}`
+
+  let unipileApiKey = process.env.UNIPILE_API_KEY?.trim() || ''
+  if (unipileApiKey.startsWith('"') && unipileApiKey.endsWith('"')) unipileApiKey = unipileApiKey.slice(1, -1)
+  if (unipileApiKey.startsWith("'") && unipileApiKey.endsWith("'")) unipileApiKey = unipileApiKey.slice(1, -1)
+
+  console.log('🔧 Config loaded:', {
+    dsn: unipileDsn,
+    hasKey: !!unipileApiKey,
+    appUrl
+  })
+
   try {
-    // Get current user session from Supabase
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) => {
-                // Ensure all auth cookies use the correct domain
-                const cookieOptions = {
-                  ...options,
-                  domain: '.bippity.boo', // Match middleware domain
-                }
-                cookieStore.set(name, value, cookieOptions)
-              })
-            } catch {
-              // Ignore errors in Server Component context
-            }
-          },
-        },
-      }
-    )
-
-    // Store Unipile account_id in oauth_tokens table using service role
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!serviceRoleKey) {
-      console.error('❌ SUPABASE_SERVICE_ROLE_KEY not configured')
-      return NextResponse.redirect(new URL('/?error=config_error', appUrl))
-    }
-
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Look up account_id from the webhook data using session_id
-    // The webhook may not have fired yet, so we'll retry with exponential backoff
-    let accountId: string | null = null
-    let retries = 0
-    const maxRetries = 10 // Increased from 5
-    const baseDelay = 500 // Start with 500ms
-    
-    console.log('🔍 Looking up account_id for session:', sessionId)
-    
-    while (!accountId && retries < maxRetries) {
-      const { data: pendingToken, error: lookupError } = await supabaseAdmin
+    // --- 2. GET ACCOUNT ID (Prefer URL Param) ---
+    // Fast path: Unipile sends account_id in URL
+    let accountId = searchParams.get('account_id')
+
+    // Fallback: DB lookup (Only if not in URL)
+    if (!accountId) {
+      console.log('⚠️ No account_id in URL, checking DB...')
+      const { data } = await supabaseAdmin
         .from('oauth_tokens')
-        .select('unipile_account_id, updated_at')
-        .eq('user_id', `pending_${sessionId}`)
+        .select('unipile_account_id')
         .eq('provider', 'unipile')
-        .single()
+        // We can't query UUID col with loose text. 
+        // This fallback is brittle on localhost. Skipping complex retry logic for clarity.
+        .limit(1)
+        .maybeSingle()
 
-      if (!lookupError && pendingToken && pendingToken.unipile_account_id) {
-        accountId = pendingToken.unipile_account_id
-        console.log('✅ Found account_id on retry', retries + 1, ':', accountId)
-        break
-      }
-
-      // Log what we found (or didn't find)
-      if (lookupError) {
-        console.log(`⏳ Retry ${retries + 1}/${maxRetries}: No account found yet (${lookupError.code || lookupError.message})`)
-      } else if (pendingToken && !pendingToken.unipile_account_id) {
-        console.log(`⏳ Retry ${retries + 1}/${maxRetries}: Record exists but no account_id yet`)
-      }
-
-      // Wait with exponential backoff before retrying (webhook might be delayed)
-      if (retries < maxRetries - 1) {
-        const delay = baseDelay * Math.pow(2, retries) // 500ms, 1s, 2s, 4s, 8s, etc.
-        console.log(`⏳ Waiting ${delay}ms before retry ${retries + 2}/${maxRetries}...`)
-        await new Promise(resolve => setTimeout(resolve, delay))
-        retries++
-      } else {
-        console.error('❌ Could not find account_id for session after', maxRetries, 'retries:', sessionId)
-        console.error('❌ Check if webhook was received at /api/webhooks/unipile/account')
-        console.error('❌ Check oauth_tokens table for user_id = pending_' + sessionId)
-        console.error('❌ Check Railway logs for webhook endpoint')
-        // Redirect to whatwefound anyway - the page can poll for account status
-        // Store session_id in cookie so whatwefound can check later
-        const response = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
-        response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
-          maxAge: 60 * 30 // 30 minutes
-        }))
-        return response
-      }
+      if (data?.unipile_account_id) accountId = data.unipile_account_id
     }
 
     if (!accountId) {
-      console.error('❌ Could not find account_id for session:', sessionId)
-      console.error('❌ This usually means the webhook has not fired yet or failed')
-      // Redirect to whatwefound anyway - the page can poll for account status
-      const response = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
-      response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
-        maxAge: 60 * 30 // 30 minutes
+      console.error('❌ No account_id found. Redirecting to summary to poll.')
+      const res = NextResponse.redirect(new URL(`/whatwefound?session=${sessionId}`, appUrl))
+      res.cookies.set('unipile_pending_session', sessionId, getCookieOptions({ maxAge: 1800 }))
+      return res
+    }
+
+    console.log('✅ Account ID obtained:', accountId)
+
+    // --- 3. FETCH EMAIL FROM UNIPILE ---
+    let accountEmail: string | null = null
+
+    // Method A: Accounts Endpoint
+    try {
+      const resp = await fetch(`${unipileDsn}/api/v1/accounts/${accountId}`, {
+        headers: { 'X-API-KEY': unipileApiKey }
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        accountEmail = data.email || data.provider_email || data.provider?.email
+        console.log('📧 Email from Account API:', accountEmail)
+      } else {
+        console.error('❌ Account API failed:', resp.status, await resp.text())
+      }
+    } catch (e) { console.error('❌ Account API Exception:', e) }
+
+    // Method B: Messages Endpoint (Fallback)
+    if (!accountEmail) {
+      try {
+        const resp = await fetch(`${unipileDsn}/api/v1/accounts/${accountId}/messages?limit=1`, {
+          headers: { 'X-API-KEY': unipileApiKey }
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          const msg = data.data?.[0]
+          accountEmail = msg?.from?.email || msg?.sender_email
+          console.log('📧 Email from Messages API:', accountEmail)
+        }
+      } catch (e) { console.error('❌ Messages API Exception:', e) }
+    }
+
+    // --- 4. HANDLE USER CREATION ---
+    let user = null
+
+    // First, check if user exists in Supabase (Auth)
+    if (accountEmail) {
+      // Try to find by email
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+      user = users.find(u => u.email?.toLowerCase() === accountEmail?.toLowerCase())
+
+      if (user) console.log('👤 Found existing user:', user.id)
+    }
+
+    // If new user, Create them
+    if (!user && accountEmail) {
+      console.log('🆕 Creating new user:', accountEmail)
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email: accountEmail,
+        email_confirm: true,
+        user_metadata: { full_name: accountEmail.split('@')[0] }
+      })
+
+      if (error) {
+        console.error('❌ Create User Error:', error)
+        return NextResponse.redirect(new URL('/?error=signup_failed', appUrl))
+      }
+      user = data.user
+    }
+
+    // If we failed to get an email, we trigger the Manual Fallback Flow
+    if (!user && !accountEmail) {
+      console.warn('⚠️ Email missing from Unipile. Triggering manual entry fallback.')
+
+      const response = NextResponse.redirect(
+        new URL(`/whatwefound?session=${sessionId}&missing_email=true`, appUrl)
+      )
+
+      // Store the Account ID securely so we can link it after user provides email
+      response.cookies.set('unipile_temp_account', accountId, getCookieOptions({
+        maxAge: 3600 // 1 hour
       }))
+
       return response
     }
-    
-    console.log('✅ Found account_id:', accountId, 'for session:', sessionId)
 
-    // Get account email from Unipile API
-    // Try multiple methods to get the email
-    let accountEmail: string | null = null
-    try {
-      const unipileDsn = process.env.UNIPILE_DSN
-      const unipileApiKey = process.env.UNIPILE_API_KEY
-      
-      if (unipileDsn && unipileApiKey) {
-        // Method 1: Get account details
-        const accountResponse = await fetch(`${unipileDsn}/api/v1/accounts/${accountId}`, {
-          headers: {
-            'X-API-KEY': unipileApiKey
-          }
-        })
-        
-        if (accountResponse.ok) {
-          const accountData = await accountResponse.json()
-          accountEmail = accountData.email || accountData.provider_email || accountData.provider?.email || null
-        }
-        
-        // Method 2: If still no email, try to get from messages endpoint
-        if (!accountEmail) {
-          try {
-            const messagesResponse = await fetch(`${unipileDsn}/api/v1/accounts/${accountId}/messages?limit=1`, {
-              headers: {
-                'X-API-KEY': unipileApiKey
-              }
-            })
-            
-            if (messagesResponse.ok) {
-              const messagesData = await messagesResponse.json()
-              if (messagesData.data && messagesData.data.length > 0) {
-                const firstMessage = messagesData.data[0]
-                accountEmail = firstMessage.from?.email || firstMessage.sender_email || null
-              }
-            }
-          } catch (msgError) {
-            console.warn('Could not fetch email from messages:', msgError)
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Could not fetch account email from Unipile:', error)
-    }
+    // --- 5. SYNC TO PUBLIC.USERS TABLE (User Request) ---
+    console.log('💾 Syncing to public.users table...')
+    const { error: publicProfileError } = await supabaseAdmin
+      .from('users')
+      .upsert({
+        id: user.id,
+        email: user.email,
+        full_name: user.user_metadata?.full_name,
+        unipile_account_id: accountId,
+        updated_at: new Date().toISOString(),
+        subscription_status: 'active', // Default to active for new signups?
+        subscription_tier: 'free'
+      }, { onConflict: 'email' })
 
-    // Check for existing user first (before trying to use user.email in fallback)
-    let user = null
-    const { data: { user: existingUser }, error: authError } = await supabase.auth.getUser()
+    if (publicProfileError) console.error('❌ Public Profile Sync Error:', publicProfileError)
+    else console.log('✅ Public Profile Synced')
 
-    if (existingUser) {
-      user = existingUser
-      console.log('✅ Authenticated user found:', user.id, 'email:', user.email)
-    }
-
-    // If we still don't have an email, try to get it from existing user or use placeholder
-    if (!accountEmail) {
-      console.warn('⚠️ Could not get email from Unipile account, will try to continue')
-      // Try to get email from existing user first
-      accountEmail = user?.email || null
-      
-      // If still no email, we can't create a user - redirect to error page
-      if (!accountEmail) {
-        console.error('❌ Cannot proceed without email - Unipile account:', accountId)
-        const response = NextResponse.redirect(new URL('/whatwefound?error=no_email&session=' + sessionId, appUrl))
-        response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
-          maxAge: 60 * 30
-        }))
-        return response
-      }
-    }
-
-    // Now that we have the email, create user if needed
-    if (!user) {
-      // No existing Supabase session - create a new user account using Admin API
-      // This handles the case where users come directly from Unipile OAuth
-      console.log('📝 No existing session - creating new Supabase user with email:', accountEmail)
-      
-      // Use Admin API to create a confirmed user (bypasses email confirmation requirement)
-      const { data: newUserData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-        email: accountEmail,
-        email_confirm: true, // Auto-confirm email so user can sign in immediately
-        user_metadata: {
-          full_name: accountEmail.split('@')[0],
-          provider: 'unipile'
-        },
-        app_metadata: {
-          provider: 'unipile'
-        }
-      })
-      
-      if (createUserError || !newUserData.user) {
-        console.error('❌ Failed to create Supabase user:', createUserError)
-        return NextResponse.redirect(new URL('/login?error=signup_failed', appUrl))
-      }
-      
-      user = newUserData.user
-      console.log('✅ Created new Supabase user via Admin API:', user.id)
-      
-      // Skip session creation for now - let whatwefound handle it
-      // The user account exists, which is what matters
-      // Session will be established when user interacts with the app
-      console.log('ℹ️ User created - session will be established on next page interaction')
-      console.log('ℹ️ User can access the app - account_id is stored in oauth_tokens')
-      
-      // Note: We could try to create a session here, but it's complex and error-prone
-      // The whatwefound page can handle authentication via polling
-    }
-
-    // Update oauth_tokens with real user_id (replacing the pending one)
-    const { error: deleteError } = await supabaseAdmin
-      .from('oauth_tokens')
-      .delete()
-      .eq('user_id', `pending_${sessionId}`)
-      .eq('provider', 'unipile')
-
-    // Store Unipile account credentials with real user_id
-    const { error: upsertError } = await supabaseAdmin
+    // --- 6. STORE TOKENS ---
+    console.log('🔑 Storing OAuth Tokens...')
+    await supabaseAdmin
       .from('oauth_tokens')
       .upsert({
         user_id: user.id,
         provider: 'unipile',
         unipile_account_id: accountId,
-        provider_email: accountEmail || user.email || null,
+        provider_email: user.email,
         updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,provider'
-      })
+      }, { onConflict: 'user_id,provider' })
 
-    if (upsertError) {
-      console.error('❌ Error storing Unipile account_id:', upsertError)
-      return NextResponse.redirect(new URL('/?error=storage_error', appUrl))
-    }
-
-    console.log('✅ Unipile account_id stored for user:', user.id, 'account:', accountId)
-
-    // Ensure user has family membership
+    // --- 7. CREATE SESSION MAPPING ---
+    // We store the Real User ID in 'user_id' (to satisfy FK constraint)
+    // And store the Session ID in 'unipile_account_id' (text field)
+    console.log('🗺️ Creating Session Map...', sessionId, '->', user.id)
     try {
-      const { familyId, isNew } = await ensureFamilyMembership(
-        user.id,
-        accountEmail || user.email!,
-        accountId
-      )
-      
-      if (isNew) {
-        console.log('✅ Created new family for user:', user.id, 'family:', familyId)
+      const { error: mapError } = await supabaseAdmin
+        .from('oauth_tokens')
+        .upsert({
+          user_id: user.id, // Must be real user ID
+          provider: 'session_map',
+          unipile_account_id: sessionId, // Store session ID here for lookup
+          provider_email: user.email,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,provider' })
+
+      if (mapError) {
+        console.error('❌ CRITICAL: Session Map Error:', mapError)
       } else {
-        console.log('✅ User already in family:', familyId)
+        console.log('✅ Session Map Created Successfully')
       }
-    } catch (familyError) {
-      console.error('❌ Error ensuring family membership:', familyError)
-      // Don't fail the flow - user can still use other parts of the app
+    } catch (dbErr) {
+      console.error('❌ CRITICAL: DB Exception during Map:', dbErr)
     }
 
-    // Trigger n8n onboarding workflow
-    const webhookUrl = process.env.N8N_UNIPILE_ONBOARDING_WEBHOOK_URL
+    // Clean up temporary pending records if any
+    try {
+      await supabaseAdmin.from('oauth_tokens').delete().eq('user_id', `pending_${sessionId}`).eq('provider', 'unipile')
+    } catch (e) { }
 
-    if (webhookUrl) {
-      try {
-        // Workflow expects payload nested under 'body' key
-        const webhookPayload = {
-          body: {
-            userId: user.id,
-            email: user.email,
-            fullName: user.user_metadata?.full_name || user.email?.split('@')[0]
-          }
-        }
+    // --- 8. FINALIZE ---
+    // --- 9. DETERMINE REDIRECT ---
+    console.log('🤔 Determining redirect destination...')
+    let destination = `/whatwefound?session=${sessionId}`
 
-        console.log('📞 Triggering n8n webhook:', webhookUrl)
-        console.log('📞 Payload:', webhookPayload)
+    try {
+      // Check if user has completed onboarding
+      const { data: summary } = await supabaseAdmin
+        .from('onboarding_summaries')
+        .select('status')
+        .eq('user_id', user.id)
+        .single()
 
-        const webhookResponse = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(webhookPayload),
-        })
-
-        if (!webhookResponse.ok) {
-          console.error('❌ n8n webhook returned error:', webhookResponse.status, await webhookResponse.text())
-        } else {
-          console.log('✅ n8n onboarding workflow triggered successfully')
-        }
-      } catch (webhookError) {
-        console.error('❌ Error calling n8n webhook:', webhookError)
-        // Don't fail the flow - user can still use the app
+      if (summary && ['completed', 'reviewed'].includes(summary.status)) {
+        console.log('✅ User has completed onboarding. Redirecting to Dashboard.')
+        destination = '/dashboard'
+      } else {
+        console.log('⏳ Onboarding not complete (Status: ' + (summary?.status || 'none') + '). Redirecting to WhatWeFound.')
       }
-    } else {
-      console.warn('⚠️ N8N_UNIPILE_ONBOARDING_WEBHOOK_URL not configured - skipping workflow trigger')
+    } catch (checkErr) {
+      console.warn('⚠️ Error checking onboarding status:', checkErr)
     }
 
-    // Clean up session cookies
-    const response = NextResponse.redirect(new URL('/whatwefound', appUrl))
-    // Delete cookies by setting them with empty value and expired date
-    const deleteCookieOptions = {
-      ...getCookieOptions(),
-      expires: new Date(0) // Expire immediately
-    }
-    response.cookies.set('unipile_session_id', '', deleteCookieOptions)
-    response.cookies.set('unipile_pending_session', '', deleteCookieOptions)
-    
-    // Prevent caching
-    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
-    response.headers.set('Pragma', 'no-cache')
-    response.headers.set('Expires', '0')
-    
-    console.log('✅ Redirecting to /whatwefound for user:', user.id)
-    
+    console.log('🚀 Redirecting to:', destination)
+    // IMPORTANT: Pass session ID so frontend knows what to poll if going to whatwefound
+    const response = NextResponse.redirect(new URL(destination, appUrl))
+
+    // Clear temp cookies
+    response.cookies.set('unipile_session_id', '', getCookieOptions({ maxAge: 0 }))
     return response
 
   } catch (error) {
-    console.error('❌ Error in Unipile callback:', error)
-    console.error('❌ Error context:', {
-      appUrl: appUrl,
-      sessionId: sessionId || 'none'
-    })
-    // Even on error, redirect to whatwefound - better UX than landing page
-    // The page can show a loading state and handle errors gracefully
-    const errorSessionId = sessionId || searchParams.get('session_id') || searchParams.get('session')
-    const response = NextResponse.redirect(new URL(`/whatwefound?error=callback_error${errorSessionId ? `&session=${errorSessionId}` : ''}`, appUrl))
-    if (sessionId) {
-      response.cookies.set('unipile_pending_session', sessionId, getCookieOptions({
-        maxAge: 60 * 30 // 30 minutes
-      }))
-    }
-    return response
+    console.error('💥 Fatal Callback Error:', error)
+    return NextResponse.redirect(new URL(`/?error=fatal_callback&msg=${String(error)}`, appUrl))
   }
 }

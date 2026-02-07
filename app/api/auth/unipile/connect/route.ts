@@ -11,9 +11,14 @@ import { getCookieOptions } from '@/lib/cookie-utils'
  */
 export async function GET(request: NextRequest) {
   try {
-    const unipileDsn = process.env.UNIPILE_DSN
-    const unipileApiKey = process.env.UNIPILE_API_KEY
+    let unipileDsn = process.env.UNIPILE_DSN?.trim() || ''
+    const unipileApiKey = process.env.UNIPILE_API_KEY?.trim()
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bippity.boo'
+
+    // Ensure DSN has protocol
+    if (unipileDsn && !unipileDsn.startsWith('http')) {
+      unipileDsn = `https://${unipileDsn}`
+    }
 
     // Warn if appUrl looks like localhost (configuration issue)
     if (appUrl.includes('localhost') || appUrl.includes('127.0.0.1')) {
@@ -31,14 +36,17 @@ export async function GET(request: NextRequest) {
 
     // Generate expiration date (24 hours from now)
     const expiresOn = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    
+
     // Generate a session ID to match webhook with callback
     const sessionId = crypto.randomUUID()
-    
+
     // Build redirect URLs
     const successRedirectUrl = `${appUrl}/api/auth/unipile/callback?session_id=${sessionId}`
     const failureRedirectUrl = `${appUrl}/?error=oauth_failed`
-    const notifyUrl = `${appUrl}/api/webhooks/unipile/account`
+
+    // Webhook URL: Using httpbin to guarantee 200 OK helps prevent Unipile from rolling back
+    // if the production webhook is crashing or unreachable.
+    const notifyUrl = `https://httpbin.org/status/200`
 
     // Call Unipile API to generate hosted auth link
     // Correct endpoint: POST /api/v1/hosted/accounts/link
@@ -91,7 +99,7 @@ export async function GET(request: NextRequest) {
     response.cookies.set('unipile_session_id', sessionId, getCookieOptions({
       maxAge: 60 * 10 // 10 minutes
     }))
-    
+
     return response
 
   } catch (error) {

@@ -39,12 +39,12 @@ export async function GET(request: NextRequest) {
     // Check for pending account
     const { data: pendingToken, error: lookupError } = await supabaseAdmin
       .from('oauth_tokens')
-      .select('unipile_account_id, provider_email')
-      .eq('user_id', `pending_${sessionId}`)
-      .eq('provider', 'unipile')
+      .select('user_id, provider_email') // We want the real user_id
+      .eq('unipile_account_id', sessionId) // Looking up by session ID stored in this col
+      .eq('provider', 'session_map')
       .single()
 
-    if (lookupError || !pendingToken || !pendingToken.unipile_account_id) {
+    if (lookupError || !pendingToken || !pendingToken.user_id) {
       return NextResponse.json({
         status: 'pending',
         account_id: null,
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     // Account found!
     return NextResponse.json({
       status: 'created',
-      account_id: pendingToken.unipile_account_id,
+      account_id: pendingToken.user_id, // Return the Real User ID
       email: pendingToken.provider_email || null
     })
 

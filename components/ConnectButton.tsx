@@ -11,7 +11,7 @@ interface ConnectButtonProps {
 }
 
 export default function ConnectButton({
-  text = "Sign Up With Unipile",
+  text = "Sign up with Google",
   className = "",
 }: ConnectButtonProps) {
   const [loading, setLoading] = useState(false);
@@ -47,8 +47,8 @@ export default function ConnectButton({
       ) : (
         <>
           <img
-            src="https://unipile.com/logo.png"
-            alt="Unipile"
+            src="https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png"
+            alt="Google"
             className="w-5 h-5"
           />
           <span>{text}</span>
