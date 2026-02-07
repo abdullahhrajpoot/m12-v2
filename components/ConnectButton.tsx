@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 interface ConnectButtonProps {
   text?: string;
@@ -11,22 +12,15 @@ interface ConnectButtonProps {
 }
 
 export default function ConnectButton({
-  text = "Sign up with Google",
+  text = "Get Started",
   className = "",
 }: ConnectButtonProps) {
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleConnect = () => {
     setLoading(true);
-
-    try {
-      // Start Unipile Hosted Auth flow
-      window.location.href = "/api/auth/unipile/connect";
-    } catch (error) {
-      console.error("Redirect error:", error);
-      setLoading(false);
-      alert("Failed to start authentication. Please check the console.");
-    }
+    router.push("/signup");
   };
 
   return (
@@ -42,15 +36,10 @@ export default function ConnectButton({
       {loading ? (
         <>
           <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          Connecting...
+          Loading...
         </>
       ) : (
         <>
-          <img
-            src="https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png"
-            alt="Google"
-            className="w-5 h-5"
-          />
           <span>{text}</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </>

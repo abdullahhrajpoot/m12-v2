@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -13,7 +11,6 @@ import {
   Phone,
   ListChecks,
 } from "lucide-react";
-import { toast } from "sonner";
 import ConnectButton from "@/components/ConnectButton";
 
 // --- Subcomponents ---
@@ -37,17 +34,16 @@ const ChaosBackground = () => {
     >
       <div
         className={`w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-white font-bold text-[10px] shadow-sm
-        ${
-          app === "ParentSquare"
+        ${app === "ParentSquare"
             ? "bg-green-500"
             : app === "TeamSnap"
-            ? "bg-orange-500"
-            : app === "ClassDojo"
-            ? "bg-emerald-500"
-            : app === "Remind"
-            ? "bg-blue-500"
-            : "bg-indigo-500"
-        }`}
+              ? "bg-orange-500"
+              : app === "ClassDojo"
+                ? "bg-emerald-500"
+                : app === "Remind"
+                  ? "bg-blue-500"
+                  : "bg-indigo-500"
+          }`}
       >
         {app.slice(0, 2).toUpperCase()}
       </div>
@@ -202,9 +198,8 @@ const FeatureCard = ({
 }: FeatureCardProps) => (
   <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
     <div
-      className={`h-12 rounded-xl flex items-center justify-center mb-6 ${color} relative overflow-hidden ${
-        iconWrapperClass || "w-12"
-      }`}
+      className={`h-12 rounded-xl flex items-center justify-center mb-6 ${color} relative overflow-hidden ${iconWrapperClass || "w-12"
+        }`}
     >
       {iconContent
         ? iconContent
@@ -354,64 +349,12 @@ const CalendarMockup = () => (
 // --- Main Page Component ---
 
 export default function Home() {
-  const router = useRouter();
 
   // Handle Unipile session parameter redirects and error parameters
   // NOTE: Legacy Google OAuth (Supabase Auth) redirects have been removed
   // All new signups should use Unipile OAuth flow via /api/auth/unipile/connect
-  useEffect(() => {
-    // Check URL for parameters (client-side only)
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const error = urlParams.get("error");
-      const errorDescription = urlParams.get("error_description");
-      const session = urlParams.get("session");
-      const code = urlParams.get("code"); // Legacy Supabase OAuth code - deprecated
-
-      // Handle Unipile session parameter - redirect to whatwefound
-      if (session) {
-        router.replace(`/whatwefound?session=${session}`);
-        return;
-      }
-
-      // Legacy Google OAuth code - redirect to Unipile flow instead
-      if (code) {
-        console.warn(
-          "⚠️ Legacy Google OAuth detected. Redirecting to Unipile flow."
-        );
-        // Clean URL and redirect to Unipile connect
-        router.replace("/api/auth/unipile/connect");
-        return;
-      }
-
-      // Handle OAuth errors (from Unipile or legacy)
-      if (error) {
-        const errorCode = urlParams.get("error_code");
-        console.error("OAuth error detected:", {
-          error,
-          errorCode,
-          errorDescription,
-        });
-
-        // Clean URL by removing error parameters
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.searchParams.delete("error");
-        cleanUrl.searchParams.delete("error_code");
-        cleanUrl.searchParams.delete("error_description");
-        router.replace(cleanUrl.pathname + cleanUrl.search);
-
-        // Show user-friendly error message
-        let errorMessage = "OAuth connection failed. Please try again.";
-        if (errorCode === "bad_oauth_state") {
-          errorMessage =
-            "Authentication session expired. Please try signing in again.";
-        } else if (errorDescription) {
-          errorMessage = errorDescription.replace(/\+/g, " ");
-        }
-        toast.error(errorMessage);
-      }
-    }
-  }, [router]);
+  // Legacy client-side redirect logic removed.
+  // All auth flows should be handled server-side or via clear entry points.
   return (
     <div className="relative min-h-screen">
       {/* Header with Logo */}

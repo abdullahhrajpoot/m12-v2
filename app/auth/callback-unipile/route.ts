@@ -9,12 +9,17 @@ export async function GET(req: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (name: string) => nextCookies().get(name)?.value,
-        set: (name: string, value: string, options: any) => {
-          nextCookies().set({ name, value, ...options });
+        getAll() {
+          return nextCookies().getAll()
         },
-        delete: (name: string, options: any) => {
-          nextCookies().delete({ name, ...options });
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              nextCookies().set(name, value, options)
+            )
+          } catch {
+            // ...
+          }
         },
       },
     }
@@ -52,9 +57,12 @@ export async function GET(req: Request) {
   // 5️⃣ Store Unipile account ID linked to Supabase user
   await supabase
     .from("users")
-    .update({ unipile_account_id: unipileAccountId })
+    .update({
+      unipile_account_id: unipileAccountId,
+      unipile_linked: true
+    })
     .eq("id", user.id);
 
-  // 6️⃣ Redirect to dashboard
-  return NextResponse.redirect("/dashboard");
+  // 6️⃣ Redirect to whatwefound
+  return NextResponse.redirect(new URL("/whatwefound", req.url));
 }

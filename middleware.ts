@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -74,7 +75,59 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refresh session if expired
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user) {
+    // Check if user is on a protected route (dashboard or whatwefound)
+    // We also want to intercept the login redirect which might go to dashboard
+    const isDashboard = request.nextUrl.pathname.startsWith('/dashboard')
+    const isWhatWeFound = request.nextUrl.pathname.startsWith('/whatwefound')
+
+    if (isDashboard || isWhatWeFound) {
+      // Use service role key to bypass RLS policies if available
+      let userData = null
+
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const adminClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY,
+          {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false,
+            }
+          }
+        )
+
+        const { data } = await adminClient
+          .from('users')
+          .select('unipile_linked, unipile_account_id')
+          .eq('id', user.id)
+          .single()
+
+        userData = data
+      } else {
+        // Fallback to user client if no service key (e.g. dev without env var)
+        const { data } = await supabase
+          .from('users')
+          .select('unipile_linked, unipile_account_id')
+          .eq('id', user.id)
+          .single()
+        userData = data
+      }
+
+      const isLinked = userData?.unipile_linked || !!userData?.unipile_account_id
+
+      if (isLinked && isDashboard) {
+        return NextResponse.redirect(new URL('/whatwefound', request.url))
+      }
+
+      if (!isLinked && isWhatWeFound) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+    }
+  }
 
   return response
 }

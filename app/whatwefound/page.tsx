@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 
+import LogoutButton from "@/components/LogoutButton"
+
 const Header = () => (
   <header className="relative z-50 bg-transparent">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
-      <div className="flex items-center">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <img
             src="/logo.png"
@@ -21,6 +23,7 @@ const Header = () => (
           />
           <span className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">bippity.boo</span>
         </div>
+        <LogoutButton />
       </div>
     </div>
   </header>
